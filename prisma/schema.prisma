@@ -1,8 +1,144 @@
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Perfil {
+  ADMIN
+  PROTETOR
+}
+
+enum EspecieAnimal {
+  CAO
+  GATO
+}
+
+enum SexoAnimal {
+  MACHO
+  FEMEA
+}
+
+enum PorteAnimal {
+  PEQUENO
+  MEDIO
+  GRANDE
+}
+
+enum StatusAnimal {
+  ACOLHIMENTO
+  ADOTADO
+}
+
+model Usuario {
+  id              String   @id @default(uuid())
+  codigo          Int      @unique @default(autoincrement())
+  nome            String
+  email           String   @unique
+  senhaHash       String   @map("senha_hash")
+  perfil          Perfil   @default(PROTETOR)
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  criadoPorId     String?  @map("criado_por_id")
+  modificadoEm    DateTime @updatedAt @map("modificado_em")
+  modificadoPorId String?  @map("modificado_por_id")
+
+  adocoesRegistradas Adocao[] @relation("AdocaoProtetor")
+
+  @@map("usuarios")
+}
+
+model Tutor {
+  id              String   @id @default(uuid())
+  codigo          Int      @unique @default(autoincrement())
+  nome            String
+  cpf             String   @unique
+  telefone        String
+  email           String   @unique
+  endereco        String
+  dataNascimento  DateTime @map("data_nascimento") @db.Date
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  criadoPorId     String?  @map("criado_por_id")
+  modificadoEm    DateTime @updatedAt @map("modificado_em")
+  modificadoPorId String?  @map("modificado_por_id")
+
+  animais Animal[]
+  adocoes Adocao[]
+
+  @@map("tutores")
+}
+
+model Animal {
+  id              String        @id @default(uuid())
+  numeroRegistro  String        @unique @map("numero_registro")
+  nome            String
+  especie         EspecieAnimal
+  raca            String
+  sexo            SexoAnimal
+  porte           PorteAnimal?
+  cor             String
+  pesoInicial     Decimal       @map("peso_inicial") @db.Decimal(5, 2)
+  pesoAtual       Decimal?      @map("peso_atual") @db.Decimal(5, 2)
+  dataNascimento  DateTime?     @map("data_nascimento") @db.Date
+  castrado        Boolean       @default(false)
+  vacinado        Boolean       @default(false)
+  localResgate    String        @map("local_resgate")
+  observacoes     String?
+  status          StatusAnimal  @default(ACOLHIMENTO)
+  tutorId         String?       @map("tutor_id")
+  ativo           Boolean       @default(true)
+  criadoEm        DateTime      @default(now()) @map("criado_em")
+  criadoPorId     String?       @map("criado_por_id")
+  modificadoEm    DateTime      @updatedAt @map("modificado_em")
+  modificadoPorId String?       @map("modificado_por_id")
+
+  tutor   Tutor?       @relation(fields: [tutorId], references: [id])
+  fotos   FotoAnimal[]
+  adocoes Adocao[]
+
+  @@index([status])
+  @@index([especie])
+  @@index([tutorId])
+  @@map("animais")
+}
+
+model FotoAnimal {
+  id              String   @id @default(uuid())
+  animalId        String   @map("animal_id")
+  url             String
+  principal       Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  criadoPorId     String?  @map("criado_por_id")
+  modificadoEm    DateTime @updatedAt @map("modificado_em")
+  modificadoPorId String?  @map("modificado_por_id")
+
+  animal Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  @@index([animalId])
+  @@map("fotos_animal")
+}
+
+model Adocao {
+  id                   String    @id @default(uuid())
+  animalId             String    @map("animal_id")
+  tutorId              String    @map("tutor_id")
+  protetorId           String    @map("protetor_id")
+  dataAdocao           DateTime  @default(now()) @map("data_adocao")
+  observacoes          String?
+  devolvidoEm          DateTime? @map("devolvido_em")
+  devolvidoPorId       String?   @map("devolvido_por_id")
+  observacoesDevolucao String?   @map("observacoes_devolucao")
+
+  animal   Animal  @relation(fields: [animalId], references: [id])
+  tutor    Tutor   @relation(fields: [tutorId], references: [id])
+  protetor Usuario @relation("AdocaoProtetor", fields: [protetorId], references: [id])
+
+  @@index([animalId])
+  @@index([tutorId])
+  @@map("adocoes")
 }

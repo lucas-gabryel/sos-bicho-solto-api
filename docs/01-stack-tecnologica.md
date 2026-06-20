@@ -8,7 +8,7 @@
 | Linguagem              | TypeScript                          | 5.x                                |
 | Framework              | NestJS                              | 11.x                               |
 | Banco de dados         | PostgreSQL                          | 16.x                               |
-| ORM                    | Prisma                              | 6.x                                |
+| ORM                    | Prisma                              | 7.x                                |
 | Autenticação           | Passport + JWT                      | `@nestjs/passport`, `passport-jwt` |
 | Hash de senha          | bcrypt                              | `bcrypt`                           |
 | Validação              | class-validator + class-transformer | —                                  |
@@ -63,9 +63,9 @@ nativo) e por já estar instalado no time. Para garantir que todos usem a mesma 
 # Criação do projeto já usando pnpm como gerenciador
 pnpm dlx @nestjs/cli new sos-bicho-solto-api --package-manager pnpm
 
-# Prisma
+# Prisma 7 (gera prisma.config.ts; gerador clássico prisma-client-js)
 pnpm add -D prisma
-pnpm add @prisma/client
+pnpm add @prisma/client @prisma/adapter-pg
 pnpm prisma init --datasource-provider postgresql
 
 # Auth e segurança
@@ -78,9 +78,15 @@ pnpm add class-validator class-transformer @nestjs/config
 # Swagger
 pnpm add @nestjs/swagger
 
-# ts-node (para rodar o prisma/seed.ts)
-pnpm add -D ts-node
+# ts-node + dotenv (rodar prisma/seed.ts e carregar .env no prisma.config.ts)
+pnpm add -D ts-node dotenv
 ```
+
+> **Prisma 7:** o `prisma init` cria um **`prisma.config.ts`** na raiz (a `DATABASE_URL` fica nele,
+> não no `datasource`). Usamos o gerador clássico `prisma-client-js` com **`output` em
+> `src/generated/prisma`** (importe de lá, não de `@prisma/client` — evita o problema de resolução
+> `.prisma/client` em pnpm) e a conexão em runtime é por **driver adapter** (`@prisma/adapter-pg`) —
+> o `new PrismaClient()` do Prisma 7 exige o adapter. Detalhes no [05](./05-banco-de-dados-prisma.md).
 
 > Comandos de binários locais com pnpm: usar `pnpm <bin>` (ex.: `pnpm prisma migrate dev`,
 > `pnpm nest start`). O `pnpm dlx` baixa e executa um pacote sem instalar (equivale ao `npx`).

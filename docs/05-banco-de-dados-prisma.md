@@ -8,14 +8,23 @@
 
 > Fonte da verdade do banco. Qualquer mudança no modelo começa aqui e gera uma migration.
 
+> **Prisma 7 (setup adotado):**
+>
+> - Gerador **clássico** `prisma-client-js` com **`output` para `src/generated/prisma`** — em projeto
+>   **pnpm**, o `@prisma/client` padrão reexporta de `.prisma/client`, que o editor/TS não resolve
+>   (dá "has no exported member"); com output dentro do projeto isso some. Importe de `src/generated/prisma`.
+> - A `DATABASE_URL` fica no **`prisma.config.ts`** (o `datasource` só tem `provider`).
+> - A conexão em runtime é por **driver adapter** (`@prisma/adapter-pg`) — no Prisma 7 o
+>   `new PrismaClient()` não aceita url direta, exige o adapter.
+
 ```prisma
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ──────────────── ENUMS ────────────────
@@ -172,6 +181,45 @@ model Adocao {
 > `autoincrement()` fora do `@id`, a alternativa é criar a sequence no banco e usar
 > `@default(dbgenerated("nextval('usuarios_codigo_seq')"))`. Validar isso no setup.
 
+## Configuração do Prisma 7 (`prisma.config.ts`)
+
+No Prisma 7, a conexão e os caminhos ficam no **`prisma.config.ts`** na raiz (não mais no `datasource`):
+
+```ts
+import 'dotenv/config';
+import { defineConfig } from 'prisma/config';
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: { path: 'prisma/migrations' },
+  datasource: { url: process.env['DATABASE_URL'] },
+});
+```
+
+## `PrismaService` (com driver adapter)
+
+O `PrismaService` estende o `PrismaClient` (de `src/generated/prisma`) e recebe o **adapter** com a `DATABASE_URL`:
+
+```ts
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { PrismaClient } from '../generated/prisma'; // output do gerador (não @prisma/client)
+import { PrismaPg } from '@prisma/adapter-pg';
+
+@Injectable()
+export class PrismaService extends PrismaClient implements OnModuleInit {
+  constructor() {
+    super({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+  }
+  async onModuleInit() {
+    await this.$connect();
+  }
+}
+```
+
+> Tipos (`Animal`, `Usuario`, enums como `Perfil`...) também vêm de `src/generated/prisma`.
+> Dica: criar um alias no `tsconfig` (ex.: `@db → src/generated/prisma`) para encurtar os imports.
+> Em produção, garanta `DATABASE_URL` no ambiente (idealmente via `ConfigService`).
+
 ## `numeroRegistro` do animal (`DD.MM.AAAA.N`)
 
 O `numeroRegistro` **não** é gerado pelo banco — é montado no `AnimaisService` no momento da criação
@@ -199,10 +247,14 @@ Em produção: `pnpm prisma migrate deploy`.
 Cria os usuários padrão (alinhados aos do front) e alguns animais de exemplo.
 
 ```ts
-import { PrismaClient, Perfil, EspecieAnimal, SexoAnimal, StatusAnimal } from '@prisma/client';
+import 'dotenv/config';
+import { PrismaClient, Perfil, EspecieAnimal, SexoAnimal, StatusAnimal } from '../src/generated/prisma';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+// Prisma 7: conexão via driver adapter (PrismaPg) com a DATABASE_URL.
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   await prisma.usuario.upsert({
@@ -257,14 +309,27 @@ main()
   .finally(() => prisma.$disconnect());
 ```
 
-Configurar no `package.json` e executar:
+No Prisma 7, o comando de seed é declarado no **`prisma.config.ts`** (não mais no `package.json`):
 
-```json
-{ "prisma": { "seed": "ts-node prisma/seed.ts" } }
+```ts
+// prisma.config.ts
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: {
+    path: 'prisma/migrations',
+    seed: 'ts-node prisma/seed.ts',
+  },
+  datasource: { url: process.env['DATABASE_URL'] },
+});
 ```
+
+Executar:
+
 ```bash
 pnpm prisma db seed
 ```
+
+> Se a chave `seed` exata mudar entre versões do Prisma 7, conferir `pnpm prisma db seed --help`.
 
 > ⚠️ **Trocar as senhas padrão** em produção e nunca commitar credenciais reais.
 
