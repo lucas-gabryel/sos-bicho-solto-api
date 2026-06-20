@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, Perfil, EspecieAnimal, SexoAnimal, StatusAnimal } from '../src/generated/prisma';
+import { PrismaClient, Perfil, EspecieAnimal, SexoAnimal, StatusAnimal } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 
