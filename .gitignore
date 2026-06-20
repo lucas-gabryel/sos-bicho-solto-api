@@ -1,0 +1,15 @@
+# deps & build
+node_modules/
+dist/
+
+# env & logs
+.env
+*.log
+
+# tests
+coverage/
+
+# os/editor
+.DS_Store
+.idea/
+.vscode/
