@@ -17,7 +17,6 @@ sos-bicho-solto-api/
 ├── src/
 │   ├── main.ts                    # bootstrap: CORS, ValidationPipe global, Swagger
 │   ├── app.module.ts              # módulo raiz
-│   ├── generated/prisma/          # client Prisma gerado (output) — NÃO versionar (.gitignore)
 │   │
 │   ├── config/                    # configuração de ambiente
 │   │   ├── env.validation.ts      # validação das variáveis de ambiente

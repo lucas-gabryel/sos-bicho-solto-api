@@ -83,10 +83,9 @@ pnpm add -D ts-node dotenv
 ```
 
 > **Prisma 7:** o `prisma init` cria um **`prisma.config.ts`** na raiz (a `DATABASE_URL` fica nele,
-> não no `datasource`). Usamos o gerador clássico `prisma-client-js` com **`output` em
-> `src/generated/prisma`** (importe de lá, não de `@prisma/client` — evita o problema de resolução
-> `.prisma/client` em pnpm) e a conexão em runtime é por **driver adapter** (`@prisma/adapter-pg`) —
-> o `new PrismaClient()` do Prisma 7 exige o adapter. Detalhes no [05](./05-banco-de-dados-prisma.md).
+> não no `datasource`). Usamos o gerador clássico `prisma-client-js` (import de `@prisma/client`) e a
+> conexão em runtime é por **driver adapter** (`@prisma/adapter-pg`) — o `new PrismaClient()` do
+> Prisma 7 exige o adapter. Detalhes no [05](./05-banco-de-dados-prisma.md).
 
 > Comandos de binários locais com pnpm: usar `pnpm <bin>` (ex.: `pnpm prisma migrate dev`,
 > `pnpm nest start`). O `pnpm dlx` baixa e executa um pacote sem instalar (equivale ao `npx`).

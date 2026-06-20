@@ -10,17 +10,18 @@
 
 > **Prisma 7 (setup adotado):**
 >
-> - Gerador **clássico** `prisma-client-js` com **`output` para `src/generated/prisma`** — em projeto
->   **pnpm**, o `@prisma/client` padrão reexporta de `.prisma/client`, que o editor/TS não resolve
->   (dá "has no exported member"); com output dentro do projeto isso some. Importe de `src/generated/prisma`.
+> - Gerador **clássico** `prisma-client-js` com **output padrão** (importa de `@prisma/client`).
 > - A `DATABASE_URL` fica no **`prisma.config.ts`** (o `datasource` só tem `provider`).
 > - A conexão em runtime é por **driver adapter** (`@prisma/adapter-pg`) — no Prisma 7 o
 >   `new PrismaClient()` não aceita url direta, exige o adapter.
+>
+> ℹ️ Se logo após o **primeiro** `prisma generate` o editor acusar `@prisma/client has no exported
+> member ...`, é cache do TS server: rode `pnpm prisma generate` e recarregue a janela do editor
+> (TS: Restart TS Server). Ideal automatizar com `"postinstall": "prisma generate"` no `package.json`.
 
 ```prisma
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -198,12 +199,12 @@ export default defineConfig({
 
 ## `PrismaService` (com driver adapter)
 
-O `PrismaService` estende o `PrismaClient` (de `src/generated/prisma`) e recebe o **adapter** com a `DATABASE_URL`:
+O `PrismaService` estende o `PrismaClient` de `@prisma/client` e recebe o **adapter** com a `DATABASE_URL`:
 
 ```ts
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { PrismaClient } from '../generated/prisma'; // output do gerador (não @prisma/client)
 import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
@@ -216,8 +217,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 }
 ```
 
-> Tipos (`Animal`, `Usuario`, enums como `Perfil`...) também vêm de `src/generated/prisma`.
-> Dica: criar um alias no `tsconfig` (ex.: `@db → src/generated/prisma`) para encurtar os imports.
+> Tipos (`Animal`, `Usuario`, enums como `Perfil`...) vêm de `@prisma/client`.
 > Em produção, garanta `DATABASE_URL` no ambiente (idealmente via `ConfigService`).
 
 ## `numeroRegistro` do animal (`DD.MM.AAAA.N`)
@@ -248,7 +248,7 @@ Cria os usuários padrão (alinhados aos do front) e alguns animais de exemplo.
 
 ```ts
 import 'dotenv/config';
-import { PrismaClient, Perfil, EspecieAnimal, SexoAnimal, StatusAnimal } from '../src/generated/prisma';
+import { PrismaClient, Perfil, EspecieAnimal, SexoAnimal, StatusAnimal } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 
