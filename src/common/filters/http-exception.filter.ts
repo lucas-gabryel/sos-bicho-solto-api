@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { STATUS_CODES } from 'node:http';
 
 interface CorpoErro {
   statusCode: number;
@@ -30,7 +31,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const { message, error } = this.extrair(exception);
+    const { message, error } = this.extrair(exception, status);
 
     if (status >= 500) {
       this.logger.error(
@@ -50,27 +51,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(status).json(corpo);
   }
 
-  private extrair(exception: unknown): {
-    message: string | string[];
-    error: string;
-  } {
+  private extrair(
+    exception: unknown,
+    status: number,
+  ): { message: string | string[]; error: string } {
+    const fraseHttp = STATUS_CODES[status] ?? 'Error';
+
     if (exception instanceof HttpException) {
       const resposta = exception.getResponse();
 
       if (typeof resposta === 'string') {
-        return { message: resposta, error: exception.name };
+        return { message: resposta, error: fraseHttp };
       }
 
       const obj = resposta as { message?: string | string[]; error?: string };
       return {
         message: obj.message ?? exception.message,
-        error: obj.error ?? exception.name,
+        error: obj.error ?? fraseHttp,
       };
     }
 
     return {
       message: 'Erro interno do servidor',
-      error: 'Internal Server Error',
+      error: fraseHttp,
     };
   }
 }
