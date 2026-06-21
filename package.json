@@ -8,6 +8,12 @@
   "engines": {
     "node": ">=20"
   },
+  "imports": {
+    "#src/*": {
+      "development": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
+  },
   "scripts": {
     "postinstall": "prisma generate",
     "build": "nest build",
@@ -77,9 +83,13 @@
       "ts"
     ],
     "rootDir": "src",
+    "clearMocks": true,
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^#src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
