@@ -1,5 +1,11 @@
 import { plainToInstance } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, Min, validateSync } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 class EnvironmentVariables {
   @IsString()
@@ -31,7 +37,9 @@ export function validateEnv(config: Record<string, unknown>) {
   const errors = validateSync(validated, { skipMissingProperties: false });
 
   if (errors.length > 0) {
-    throw new Error(`Erro de validação das variáveis de ambiente:\n${errors.toString()}`);
+    throw new Error(
+      `Erro de validação das variáveis de ambiente:\n${errors.toString()}`,
+    );
   }
 
   return validated;

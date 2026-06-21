@@ -23,9 +23,16 @@ export class HealthController {
   async checkDb() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return { status: 'ok', database: 'up', timestamp: new Date().toISOString() };
+      return {
+        status: 'ok',
+        database: 'up',
+        timestamp: new Date().toISOString(),
+      };
     } catch {
-      throw new ServiceUnavailableException({ status: 'error', database: 'down' });
+      throw new ServiceUnavailableException({
+        status: 'error',
+        database: 'down',
+      });
     }
   }
 }

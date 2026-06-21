@@ -1,4 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public } from '#src/common/decorators/public.decorator';
 import { UsuarioAtual } from '#src/common/decorators/usuario-atual.decorator';
