@@ -142,7 +142,13 @@ Códigos HTTP usados:
 - **TypeScript estrito** (`strict: true` no `tsconfig`).
 - ESLint + Prettier obrigatórios; rodar antes de commitar.
 - Nada de `any` sem justificativa.
-- Imports absolutos a partir de `src/` quando configurado.
+- **Alias de import `#src/*`** para evitar caminhos relativos profundos (`../../..`). Use em imports
+  que sobem de pasta; mantenha `./` para arquivos da mesma pasta. Ex.:
+  `import { PrismaService } from '#src/database/prisma.service';`
+  - Implementado via **subpath imports do Node** (`"imports"` no `package.json`) + `customConditions`
+    no `tsconfig` — sem `baseUrl`/`tsc-alias`. Em dev/prod resolve para `dist`; na IDE/tsc, para o source.
+  - Como o `deleteOutDir` do nest conflita com build incremental, o `incremental` foi removido do
+    `tsconfig` (o `nest build` apaga o `dist` e re-emite tudo).
 - **Idioma do código (convenção do time):**
 
   | Camada                                             | Idioma        | Exemplos                                                        |
