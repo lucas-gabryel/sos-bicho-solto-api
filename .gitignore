@@ -1,6 +1,8 @@
 # deps & build
 node_modules/
 dist/
+tsconfig.build.tsbuildinfo
+tsconfig.tsbuildinfo
 
 # env & logs
 .env
