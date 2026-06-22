@@ -8,6 +8,7 @@ import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
+import { AnimaisModule } from './modules/animais/animais.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
     PrismaModule,
     AuthModule,
     UsuariosModule,
+    AnimaisModule,
     HealthModule,
   ],
   providers: [
