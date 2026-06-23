@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { AnimaisModule } from './modules/animais/animais.module';
+import { TutoresModule } from './modules/tutores/tutores.module';
 
 @Module({
   imports: [
@@ -17,8 +18,10 @@ import { AnimaisModule } from './modules/animais/animais.module';
     AuthModule,
     UsuariosModule,
     AnimaisModule,
+    TutoresModule,
     HealthModule,
   ],
+
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },

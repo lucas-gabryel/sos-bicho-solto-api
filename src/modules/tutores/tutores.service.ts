@@ -13,11 +13,14 @@ import type { IUsuariosRepository } from '#src/modules/usuarios/repositories/usu
 import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
 import type { ITutoresRepository } from './repositories/tutores.repository.interface';
 import { TUTORES_REPOSITORY } from './repositories/tutores.repository.interface';
+import type { IAnimaisRepository } from '#src/modules/animais/repositories/animais.repository.interface';
+import { ANIMAIS_REPOSITORY } from '#src/modules/animais/repositories/animais.repository.interface';
 
 import { CriarTutorDto } from './dto/criar-tutor.dto';
 import { AtualizarTutorDto } from './dto/atualizar-tutor.dto';
 import { FiltrarTutoresDto } from './dto/filtrar-tutores.dto';
 import { TutorResponseDto } from './dto/tutor-response.dto';
+import { AnimalResponseDto } from '#src/modules/animais/dto/animal-response.dto';
 
 @Injectable()
 export class TutoresService {
@@ -26,6 +29,8 @@ export class TutoresService {
     private readonly tutoresRepository: ITutoresRepository,
     @Inject(USUARIOS_REPOSITORY)
     private readonly usuariosRepository: IUsuariosRepository,
+    @Inject(ANIMAIS_REPOSITORY)
+    private readonly animaisRepository: IAnimaisRepository,
   ) {}
 
   async criar(
@@ -113,6 +118,17 @@ export class TutoresService {
     }
 
     await this.tutoresRepository.excluir(id, usuario.sub);
+  }
+
+  async buscarAnimaisDoTutor(id: string): Promise<AnimalResponseDto[]> {
+    await this.buscarAtivoOuFalhar(id);
+    const { data } = await this.animaisRepository.listar({
+      skip: 0,
+      take: 100,
+      tutorId: id,
+    });
+
+    return data.map((animal) => AnimalResponseDto.fromEntity(animal));
   }
 
   private async buscarAtivoOuFalhar(id: string): Promise<Tutor> {

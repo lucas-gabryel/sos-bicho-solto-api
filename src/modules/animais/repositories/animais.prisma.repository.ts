@@ -90,6 +90,10 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
       where.status = params.status;
     }
 
+    if (params.tutorId) {
+      where.tutorId = params.tutorId;
+    }
+
     if (params.busca) {
       where.OR = [
         { nome: { contains: params.busca, mode: 'insensitive' } },

@@ -13,6 +13,7 @@ export interface ListarAnimaisParams {
   especie?: EspecieAnimal;
   status?: StatusAnimal;
   busca?: string;
+  tutorId?: string;
 }
 
 export interface IAnimaisRepository {
