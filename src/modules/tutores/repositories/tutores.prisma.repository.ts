@@ -26,7 +26,7 @@ export class TutoresPrismaRepository implements ITutoresRepository {
 
   async buscarPorCpf(cpf: string): Promise<Tutor | null> {
     return this.prisma.tutor.findUnique({
-      where: { cpf },
+      where: { cpf: cpf.replace(/\D/g, '') },
     });
   }
 
@@ -42,9 +42,12 @@ export class TutoresPrismaRepository implements ITutoresRepository {
     };
 
     if (params.busca) {
+      const cleanBusca = params.busca.replace(/\D/g, '');
       where.OR = [
         { nome: { contains: params.busca, mode: 'insensitive' } },
-        { cpf: { contains: params.busca, mode: 'insensitive' } },
+        ...(cleanBusca
+          ? [{ cpf: { contains: cleanBusca, mode: 'insensitive' as const } }]
+          : []),
       ];
     }
 

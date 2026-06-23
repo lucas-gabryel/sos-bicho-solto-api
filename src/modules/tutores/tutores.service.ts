@@ -37,12 +37,13 @@ export class TutoresService {
     dto: CriarTutorDto,
     usuario: JwtPayload,
   ): Promise<TutorResponseDto> {
+    const cpfNormalizado = dto.cpf.replace(/\D/g, '');
     await this.garantirEmailDisponivel(dto.email);
-    await this.garantirCpfDisponivel(dto.cpf);
+    await this.garantirCpfDisponivel(cpfNormalizado);
 
     const tutor = await this.tutoresRepository.criar({
       nome: dto.nome,
-      cpf: dto.cpf,
+      cpf: cpfNormalizado,
       telefone: dto.telefone,
       email: dto.email,
       endereco: dto.endereco,
@@ -86,13 +87,17 @@ export class TutoresService {
       await this.garantirEmailDisponivel(dto.email);
     }
 
-    if (dto.cpf && dto.cpf !== tutor.cpf) {
-      await this.garantirCpfDisponivel(dto.cpf);
+    let cpfNormalizado: string | undefined = undefined;
+    if (dto.cpf) {
+      cpfNormalizado = dto.cpf.replace(/\D/g, '');
+      if (cpfNormalizado !== tutor.cpf.replace(/\D/g, '')) {
+        await this.garantirCpfDisponivel(cpfNormalizado);
+      }
     }
 
     const atualizado = await this.tutoresRepository.atualizar(id, {
       nome: dto.nome,
-      cpf: dto.cpf,
+      cpf: cpfNormalizado,
       telefone: dto.telefone,
       email: dto.email,
       endereco: dto.endereco,
@@ -147,7 +152,8 @@ export class TutoresService {
   }
 
   private async garantirCpfDisponivel(cpf: string): Promise<void> {
-    const existente = await this.tutoresRepository.buscarPorCpf(cpf);
+    const cleanCpf = cpf.replace(/\D/g, '');
+    const existente = await this.tutoresRepository.buscarPorCpf(cleanCpf);
     if (existente && existente.ativo) {
       throw new ConflictException('CPF já cadastrado para outro tutor.');
     }

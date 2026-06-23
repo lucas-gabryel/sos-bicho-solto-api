@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsEmail,
   IsDate,
@@ -20,6 +20,15 @@ export class CriarTutorDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const isCpfFormat = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/.test(value);
+      if (isCpfFormat) {
+        return value.replace(/\D/g, '');
+      }
+    }
+    return value as unknown;
+  })
   @Matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/, {
     message:
       'O CPF deve estar no formato XXX.XXX.XXX-XX ou conter apenas 11 dígitos numéricos.',

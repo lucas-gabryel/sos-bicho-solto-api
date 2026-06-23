@@ -53,7 +53,7 @@ describe('TutoresService', () => {
     id: 'tutor-123',
     codigo: 1,
     nome: 'Ana Clara Santos',
-    cpf: '390.533.447-05',
+    cpf: '39053344705',
     telefone: '(82) 99912-3456',
     email: 'ana.clara@email.com',
     endereco: 'Rua Pedro Oliveira, 145',
@@ -111,6 +111,7 @@ describe('TutoresService', () => {
 
       expect(mockTutoresRepository.criar).toHaveBeenCalledWith({
         ...dto,
+        cpf: '39053344705',
         criadoPorId: usuarioAdmin.sub,
         modificadoPorId: usuarioAdmin.sub,
       });
@@ -211,6 +212,59 @@ describe('TutoresService', () => {
         { ...dto, modificadoPorId: usuarioAdmin.sub },
       );
       expect(result.nome).toBe('Ana Santos');
+    });
+
+    it('deve atualizar o CPF do tutor normalizando-o', async () => {
+      const dto = { cpf: '390.533.447-05' };
+
+      mockTutoresRepository.buscarPorId.mockResolvedValue(mockTutor);
+      mockTutoresRepository.buscarPorCpf.mockResolvedValue(null);
+      mockTutoresRepository.atualizar.mockResolvedValue({
+        ...mockTutor,
+        cpf: '39053344705',
+      });
+
+      const result = await service.atualizar('tutor-123', dto, usuarioAdmin);
+
+      expect(mockTutoresRepository.atualizar).toHaveBeenCalledWith(
+        'tutor-123',
+        { cpf: '39053344705', modificadoPorId: usuarioAdmin.sub },
+      );
+      expect(result.cpf).toBe('39053344705');
+    });
+
+    it('não deve validar unicidade se o CPF enviado for igual ao existente porém em formato diferente', async () => {
+      const dto = { cpf: '390.533.447-05' };
+
+      mockTutoresRepository.buscarPorId.mockResolvedValue(mockTutor);
+      mockTutoresRepository.atualizar.mockResolvedValue(mockTutor);
+
+      await service.atualizar('tutor-123', dto, usuarioAdmin);
+
+      expect(mockTutoresRepository.buscarPorCpf).not.toHaveBeenCalled();
+      expect(mockTutoresRepository.atualizar).toHaveBeenCalledWith(
+        'tutor-123',
+        { cpf: '39053344705', modificadoPorId: usuarioAdmin.sub },
+      );
+    });
+
+    it('deve validar unicidade se o CPF enviado for diferente do existente', async () => {
+      const dto = { cpf: '111.111.111-11' };
+
+      mockTutoresRepository.buscarPorId.mockResolvedValue(mockTutor);
+      mockTutoresRepository.buscarPorCpf.mockResolvedValue(null);
+      mockTutoresRepository.atualizar.mockResolvedValue({
+        ...mockTutor,
+        cpf: '11111111111',
+      });
+
+      await service.atualizar('tutor-123', dto, usuarioAdmin);
+
+      expect(mockTutoresRepository.buscarPorCpf).toHaveBeenCalledWith('11111111111');
+      expect(mockTutoresRepository.atualizar).toHaveBeenCalledWith(
+        'tutor-123',
+        { cpf: '11111111111', modificadoPorId: usuarioAdmin.sub },
+      );
     });
   });
 
