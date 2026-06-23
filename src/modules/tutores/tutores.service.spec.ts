@@ -260,7 +260,9 @@ describe('TutoresService', () => {
 
       await service.atualizar('tutor-123', dto, usuarioAdmin);
 
-      expect(mockTutoresRepository.buscarPorCpf).toHaveBeenCalledWith('11111111111');
+      expect(mockTutoresRepository.buscarPorCpf).toHaveBeenCalledWith(
+        '11111111111',
+      );
       expect(mockTutoresRepository.atualizar).toHaveBeenCalledWith(
         'tutor-123',
         { cpf: '11111111111', modificadoPorId: usuarioAdmin.sub },

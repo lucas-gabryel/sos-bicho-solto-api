@@ -35,7 +35,16 @@ export class TutorResponseDto {
   static fromEntity(tutor: Tutor): TutorResponseDto {
     const dto = new TutorResponseDto();
     Object.assign(dto, {
-      ...tutor,
+      id: tutor.id,
+      codigo: tutor.codigo,
+      nome: tutor.nome,
+      cpf: tutor.cpf,
+      telefone: tutor.telefone,
+      email: tutor.email,
+      endereco: tutor.endereco,
+      dataNascimento: tutor.dataNascimento,
+      criadoEm: tutor.criadoEm,
+      modificadoEm: tutor.modificadoEm,
     });
     return dto;
   }

@@ -11,7 +11,7 @@ import {
 import { paginar, RespostaPaginada } from '#src/common/dto/paginacao.dto';
 import { CriarAnimalDto } from './dto/criar-animal.dto';
 import { AtualizarAnimalDto } from './dto/atualizar-animal.dto';
-import { AnimalResponseDto } from './dto/animal-response.dto';
+import { AnimalResponseDto, FotoResponseDto } from './dto/animal-response.dto';
 import { ANIMAIS_REPOSITORY } from './repositories/animais.repository.interface';
 import { FiltrarAnimaisDto } from './dto/filtrar-animais.dto';
 import type { IUsuariosRepository } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
@@ -137,7 +137,7 @@ export class AnimaisService {
       principal,
       usuario.sub,
     );
-    return foto;
+    return FotoResponseDto.fromEntity(foto);
   }
 
   async removerFoto(animalId: string, fotoId: string, usuario: JwtPayload) {

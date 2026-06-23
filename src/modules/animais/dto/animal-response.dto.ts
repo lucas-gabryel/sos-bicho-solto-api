@@ -10,6 +10,16 @@ export class FotoResponseDto {
 
   @ApiProperty({ example: true })
   readonly principal!: boolean;
+
+  static fromEntity(foto: FotoAnimal): FotoResponseDto {
+    const dto = new FotoResponseDto();
+    Object.assign(dto, {
+      id: foto.id,
+      url: foto.url,
+      principal: foto.principal,
+    });
+    return dto;
+  }
 }
 
 export class AnimalResponseDto {
@@ -81,9 +91,25 @@ export class AnimalResponseDto {
   ): AnimalResponseDto {
     const dto = new AnimalResponseDto();
     Object.assign(dto, {
-      ...animal,
+      id: animal.id,
+      numeroRegistro: animal.numeroRegistro,
+      nome: animal.nome,
+      especie: animal.especie,
+      raca: animal.raca,
+      sexo: animal.sexo,
+      porte: animal.porte,
+      cor: animal.cor,
       pesoInicial: Number(animal.pesoInicial),
       pesoAtual: animal.pesoAtual ? Number(animal.pesoAtual) : null,
+      dataNascimento: animal.dataNascimento,
+      castrado: animal.castrado,
+      vacinado: animal.vacinado,
+      localResgate: animal.localResgate,
+      observacoes: animal.observacoes,
+      status: animal.status,
+      tutorId: animal.tutorId,
+      criadoEm: animal.criadoEm,
+      modificadoEm: animal.modificadoEm,
       fotos: animal.fotos
         ? animal.fotos
             .filter((f) => f.ativo)
