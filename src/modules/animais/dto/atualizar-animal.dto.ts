@@ -4,7 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsBoolean,
-  IsISO8601,
+  IsDate,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -80,7 +80,7 @@ export class AtualizarAnimalDto {
     type: 'string',
     format: 'date-time',
   })
-  @IsISO8601()
+  @IsDate()
   @IsOptional()
   @Type(() => Date)
   readonly dataNascimento?: Date;

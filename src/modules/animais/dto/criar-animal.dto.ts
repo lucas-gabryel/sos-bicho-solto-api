@@ -5,7 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsBoolean,
-  IsISO8601,
+  IsDate,
   IsArray,
   ValidateNested,
 } from 'class-validator';
@@ -89,7 +89,7 @@ export class CriarAnimalDto {
     type: 'string',
     format: 'date-time',
   })
-  @IsISO8601()
+  @IsDate()
   @IsOptional()
   @Type(() => Date)
   readonly dataNascimento?: Date;

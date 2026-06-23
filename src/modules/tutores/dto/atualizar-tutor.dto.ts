@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
-  IsISO8601,
+  IsDate,
   IsOptional,
   IsString,
   Matches,
@@ -59,7 +59,7 @@ export class AtualizarTutorDto {
     format: 'date-time',
     description: 'Data de nascimento',
   })
-  @IsISO8601()
+  @IsDate()
   @IsOptional()
   @Type(() => Date)
   readonly dataNascimento?: Date;
