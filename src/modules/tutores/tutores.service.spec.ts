@@ -9,6 +9,7 @@ import { TUTORES_REPOSITORY } from './repositories/tutores.repository.interface'
 import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
 import { ANIMAIS_REPOSITORY } from '#src/modules/animais/repositories/animais.repository.interface';
 import { FiltrarTutoresDto } from './dto/filtrar-tutores.dto';
+import { PaginacaoDto } from '#src/common/dto/paginacao.dto';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -317,15 +318,20 @@ describe('TutoresService', () => {
         total: 1,
       });
 
-      const result = await service.buscarAnimaisDoTutor('tutor-123');
+      const paginacao = Object.assign(new PaginacaoDto(), {
+        page: 1,
+        limit: 10,
+      });
+      const result = await service.buscarAnimaisDoTutor('tutor-123', paginacao);
 
       expect(mockAnimaisRepository.listar).toHaveBeenCalledWith({
         skip: 0,
-        take: 100,
+        take: 10,
         tutorId: 'tutor-123',
       });
-      expect(result).toHaveLength(1);
-      expect(result[0].nome).toBe('Rex');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].nome).toBe('Rex');
+      expect(result.meta.total).toBe(1);
     });
   });
 });

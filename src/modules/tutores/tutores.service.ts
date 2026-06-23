@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { Tutor } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { paginar, RespostaPaginada } from '#src/common/dto/paginacao.dto';
+import {
+  paginar,
+  PaginacaoDto,
+  RespostaPaginada,
+} from '#src/common/dto/paginacao.dto';
 import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import type { IUsuariosRepository } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
 import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
@@ -125,15 +129,22 @@ export class TutoresService {
     await this.tutoresRepository.excluir(id, usuario.sub);
   }
 
-  async buscarAnimaisDoTutor(id: string): Promise<AnimalResponseDto[]> {
+  async buscarAnimaisDoTutor(
+    id: string,
+    paginacao: PaginacaoDto,
+  ): Promise<RespostaPaginada<AnimalResponseDto>> {
     await this.buscarAtivoOuFalhar(id);
-    const { data } = await this.animaisRepository.listar({
-      skip: 0,
-      take: 100,
+    const { data, total } = await this.animaisRepository.listar({
+      skip: paginacao.skip,
+      take: paginacao.take,
       tutorId: id,
     });
 
-    return data.map((animal) => AnimalResponseDto.fromEntity(animal));
+    return paginar(
+      data.map((animal) => AnimalResponseDto.fromEntity(animal)),
+      total,
+      paginacao,
+    );
   }
 
   private async buscarAtivoOuFalhar(id: string): Promise<Tutor> {

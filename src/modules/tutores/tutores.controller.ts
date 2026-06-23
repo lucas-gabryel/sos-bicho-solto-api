@@ -22,6 +22,7 @@ import { FiltrarTutoresDto } from './dto/filtrar-tutores.dto';
 import { TutorResponseDto } from './dto/tutor-response.dto';
 import { ExcluirUsuarioDto } from '#src/modules/usuarios/dto/excluir-usuario.dto';
 import { AnimalResponseDto } from '#src/modules/animais/dto/animal-response.dto';
+import { PaginacaoDto } from '#src/common/dto/paginacao.dto';
 import { JwtAuthGuard } from '#src/common/guards/jwt-auth.guard';
 import { PerfilGuard } from '#src/common/guards/perfil.guard';
 import { UsuarioAtual } from '#src/common/decorators/usuario-atual.decorator';
@@ -101,11 +102,13 @@ export class TutoresController {
   @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
   @ApiResponse({
     status: 200,
-    description:
-      'Animais vinculados a este tutor (retorna no máximo os 100 primeiros animais)',
+    description: 'Animais vinculados a este tutor (paginado)',
     type: [AnimalResponseDto],
   })
-  buscarAnimaisDoTutor(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tutoresService.buscarAnimaisDoTutor(id);
+  buscarAnimaisDoTutor(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() paginacao: PaginacaoDto,
+  ) {
+    return this.tutoresService.buscarAnimaisDoTutor(id, paginacao);
   }
 }
