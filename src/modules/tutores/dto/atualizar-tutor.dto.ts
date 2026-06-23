@@ -1,0 +1,66 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
+
+export class AtualizarTutorDto {
+  @ApiPropertyOptional({
+    example: 'Ana Clara Santos',
+    description: 'Nome do tutor',
+  })
+  @IsString()
+  @IsOptional()
+  readonly nome?: string;
+
+  @ApiPropertyOptional({
+    example: '390.533.447-05',
+    description: 'CPF do tutor (com ou sem formatação)',
+  })
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/, {
+    message:
+      'O CPF deve estar no formato XXX.XXX.XXX-XX ou conter apenas 11 dígitos numéricos.',
+  })
+  readonly cpf?: string;
+
+  @ApiPropertyOptional({
+    example: '(82) 99912-3456',
+    description: 'Telefone de contato',
+  })
+  @IsString()
+  @IsOptional()
+  readonly telefone?: string;
+
+  @ApiPropertyOptional({
+    example: 'ana.clara@email.com',
+    description: 'E-mail do tutor',
+  })
+  @IsEmail({}, { message: 'O e-mail informado é inválido.' })
+  @IsOptional()
+  readonly email?: string;
+
+  @ApiPropertyOptional({
+    example: 'Rua Pedro Oliveira, 145 - Centro, Arapiraca/AL',
+    description: 'Endereço completo',
+  })
+  @IsString()
+  @IsOptional()
+  readonly endereco?: string;
+
+  @ApiPropertyOptional({
+    example: '1992-03-15T00:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+    description: 'Data de nascimento',
+  })
+  @IsISO8601()
+  @IsOptional()
+  @Type(() => Date)
+  readonly dataNascimento?: Date;
+}
