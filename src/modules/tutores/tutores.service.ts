@@ -1,0 +1,139 @@
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Tutor } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { paginar, RespostaPaginada } from '#src/common/dto/paginacao.dto';
+import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
+import type { IUsuariosRepository } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
+import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
+import type { ITutoresRepository } from './repositories/tutores.repository.interface';
+import { TUTORES_REPOSITORY } from './repositories/tutores.repository.interface';
+
+import { CriarTutorDto } from './dto/criar-tutor.dto';
+import { AtualizarTutorDto } from './dto/atualizar-tutor.dto';
+import { FiltrarTutoresDto } from './dto/filtrar-tutores.dto';
+import { TutorResponseDto } from './dto/tutor-response.dto';
+
+@Injectable()
+export class TutoresService {
+  constructor(
+    @Inject(TUTORES_REPOSITORY)
+    private readonly tutoresRepository: ITutoresRepository,
+    @Inject(USUARIOS_REPOSITORY)
+    private readonly usuariosRepository: IUsuariosRepository,
+  ) {}
+
+  async criar(
+    dto: CriarTutorDto,
+    usuario: JwtPayload,
+  ): Promise<TutorResponseDto> {
+    await this.garantirEmailDisponivel(dto.email);
+    await this.garantirCpfDisponivel(dto.cpf);
+
+    const tutor = await this.tutoresRepository.criar({
+      nome: dto.nome,
+      cpf: dto.cpf,
+      telefone: dto.telefone,
+      email: dto.email,
+      endereco: dto.endereco,
+      dataNascimento: new Date(dto.dataNascimento),
+      criadoPorId: usuario.sub,
+      modificadoPorId: usuario.sub,
+    });
+
+    return TutorResponseDto.fromEntity(tutor);
+  }
+
+  async buscarUm(id: string): Promise<TutorResponseDto> {
+    const tutor = await this.buscarAtivoOuFalhar(id);
+    return TutorResponseDto.fromEntity(tutor);
+  }
+
+  async listar(
+    filtros: FiltrarTutoresDto,
+  ): Promise<RespostaPaginada<TutorResponseDto>> {
+    const { data, total } = await this.tutoresRepository.listar({
+      skip: filtros.skip,
+      take: filtros.take,
+      busca: filtros.busca,
+    });
+
+    return paginar(
+      data.map((tutor) => TutorResponseDto.fromEntity(tutor)),
+      total,
+      filtros,
+    );
+  }
+
+  async atualizar(
+    id: string,
+    dto: AtualizarTutorDto,
+    usuario: JwtPayload,
+  ): Promise<TutorResponseDto> {
+    const tutor = await this.buscarAtivoOuFalhar(id);
+
+    if (dto.email && dto.email !== tutor.email) {
+      await this.garantirEmailDisponivel(dto.email);
+    }
+
+    if (dto.cpf && dto.cpf !== tutor.cpf) {
+      await this.garantirCpfDisponivel(dto.cpf);
+    }
+
+    const atualizado = await this.tutoresRepository.atualizar(id, {
+      nome: dto.nome,
+      cpf: dto.cpf,
+      telefone: dto.telefone,
+      email: dto.email,
+      endereco: dto.endereco,
+      dataNascimento: dto.dataNascimento
+        ? new Date(dto.dataNascimento)
+        : undefined,
+      modificadoPorId: usuario.sub,
+    });
+
+    return TutorResponseDto.fromEntity(atualizado);
+  }
+
+  async excluir(
+    id: string,
+    senhaAdmin: string,
+    usuario: JwtPayload,
+  ): Promise<void> {
+    await this.buscarAtivoOuFalhar(id);
+
+    const admin = await this.usuariosRepository.buscarPorId(usuario.sub);
+    if (!admin || !(await bcrypt.compare(senhaAdmin, admin.senhaHash))) {
+      throw new UnauthorizedException('Senha do administrador inválida.');
+    }
+
+    await this.tutoresRepository.excluir(id, usuario.sub);
+  }
+
+  private async buscarAtivoOuFalhar(id: string): Promise<Tutor> {
+    const tutor = await this.tutoresRepository.buscarPorId(id);
+    if (!tutor || !tutor.ativo) {
+      throw new NotFoundException('Tutor não encontrado.');
+    }
+    return tutor;
+  }
+
+  private async garantirEmailDisponivel(email: string): Promise<void> {
+    const existente = await this.tutoresRepository.buscarPorEmail(email);
+    if (existente && existente.ativo) {
+      throw new ConflictException('E-mail já cadastrado para outro tutor.');
+    }
+  }
+
+  private async garantirCpfDisponivel(cpf: string): Promise<void> {
+    const existente = await this.tutoresRepository.buscarPorCpf(cpf);
+    if (existente && existente.ativo) {
+      throw new ConflictException('CPF já cadastrado para outro tutor.');
+    }
+  }
+}
