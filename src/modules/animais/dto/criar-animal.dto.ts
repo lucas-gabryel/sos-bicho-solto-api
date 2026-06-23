@@ -8,6 +8,8 @@ import {
   IsDate,
   IsArray,
   ValidateNested,
+  IsUrl,
+  ArrayMinSize,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -15,7 +17,7 @@ import { EspecieAnimal, SexoAnimal, PorteAnimal } from '@prisma/client';
 
 export class FotoAnimalDto {
   @ApiProperty({ example: 'https://exemplo.com/rex.jpg' })
-  @IsString()
+  @IsUrl()
   @IsNotEmpty()
   url!: string;
 
@@ -96,6 +98,7 @@ export class CriarAnimalDto {
 
   @ApiProperty({ type: [FotoAnimalDto] })
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => FotoAnimalDto)
   readonly fotos!: FotoAnimalDto[];

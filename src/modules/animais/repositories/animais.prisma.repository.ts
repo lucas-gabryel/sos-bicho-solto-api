@@ -21,12 +21,12 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
     const mm = String(hoje.getMonth() + 1).padStart(2, '0');
     const aaaa = hoje.getFullYear();
     const prefixo = `${dd}.${mm}.${aaaa}`;
-    const countHoje = await this.prisma.animal.count({
-      where: { numeroRegistro: { startsWith: prefixo } },
-    });
-    const numeroRegistro = `${prefixo}.${countHoje + 1}`;
-
     return this.prisma.$transaction(async (tx) => {
+      const countHoje = await tx.animal.count({
+        where: { numeroRegistro: { startsWith: prefixo } },
+      });
+      const numeroRegistro = `${prefixo}.${countHoje + 1}`;
+
       const animal = await tx.animal.create({
         data: {
           numeroRegistro,

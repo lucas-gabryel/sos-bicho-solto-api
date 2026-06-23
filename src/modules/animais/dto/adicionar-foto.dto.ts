@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsUrl } from 'class-validator';
 
 export class AdicionarFotoDto {
   @ApiProperty({
     example: 'https://exemplo.com/foto.jpg',
     description: 'URL da foto',
   })
-  @IsString()
+  @IsUrl()
   @IsNotEmpty()
   url!: string;
 

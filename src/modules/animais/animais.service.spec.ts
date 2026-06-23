@@ -263,4 +263,207 @@ describe('AnimaisService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
   });
+
+  describe('adicionarFoto', () => {
+    it('deve adicionar uma foto ao animal com sucesso', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      const fotoCriada = {
+        id: 'foto-2',
+        url: 'https://exemplo.com/outra.jpg',
+        principal: false,
+        ativo: true,
+      };
+      mockRepository.adicionarFoto.mockResolvedValue(fotoCriada);
+
+      const result = await service.adicionarFoto(
+        '123',
+        'https://exemplo.com/outra.jpg',
+        false,
+        usuarioAdmin,
+      );
+
+      expect(mockRepository.buscarPorId).toHaveBeenCalledWith('123');
+      expect(mockRepository.adicionarFoto).toHaveBeenCalledWith(
+        '123',
+        'https://exemplo.com/outra.jpg',
+        false,
+        usuarioAdmin.sub,
+      );
+      expect(result.id).toBe('foto-2');
+      expect(result.url).toBe('https://exemplo.com/outra.jpg');
+      expect(result.principal).toBe(false);
+    });
+
+    it('deve lançar NotFoundException se o animal não for encontrado ou não estiver ativo', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(null);
+
+      await expect(
+        service.adicionarFoto(
+          '999',
+          'https://exemplo.com/outra.jpg',
+          false,
+          usuarioAdmin,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('removerFoto', () => {
+    it('deve lançar NotFoundException se o animal não for encontrado', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(null);
+
+      await expect(
+        service.removerFoto('999', 'foto-1', usuarioAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar NotFoundException se a foto não pertencer ao animal ou não estiver ativa', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.buscarFotoPorId.mockResolvedValue(null);
+
+      await expect(
+        service.removerFoto('123', 'foto-inexistente', usuarioAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar BadRequestException se for a única foto ativa do animal', async () => {
+      const animalComUmaFoto = {
+        ...mockAnimal,
+        fotos: [
+          {
+            id: 'foto-1',
+            animalId: '123',
+            url: 'https://exemplo.com/rex.jpg',
+            principal: true,
+            ativo: true,
+          },
+        ],
+      };
+      mockRepository.buscarPorId.mockResolvedValue(animalComUmaFoto);
+      mockRepository.buscarFotoPorId.mockResolvedValue(
+        animalComUmaFoto.fotos[0],
+      );
+
+      await expect(
+        service.removerFoto('123', 'foto-1', usuarioAdmin),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve remover a foto e reatribuir a principal para a próxima se a removida for a principal', async () => {
+      const animalComDuasFotos = {
+        ...mockAnimal,
+        fotos: [
+          {
+            id: 'foto-1',
+            animalId: '123',
+            url: 'https://exemplo.com/f1.jpg',
+            principal: true,
+            ativo: true,
+          },
+          {
+            id: 'foto-2',
+            animalId: '123',
+            url: 'https://exemplo.com/f2.jpg',
+            principal: false,
+            ativo: true,
+          },
+        ],
+      };
+      mockRepository.buscarPorId.mockResolvedValue(animalComDuasFotos);
+      mockRepository.buscarFotoPorId.mockResolvedValue(
+        animalComDuasFotos.fotos[0],
+      );
+
+      const result = await service.removerFoto('123', 'foto-1', usuarioAdmin);
+
+      expect(mockRepository.removerFoto).toHaveBeenCalledWith(
+        'foto-1',
+        usuarioAdmin.sub,
+      );
+      expect(mockRepository.definirFotoPrincipal).toHaveBeenCalledWith(
+        '123',
+        'foto-2',
+        usuarioAdmin.sub,
+      );
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('deve apenas remover a foto se a removida não for a principal', async () => {
+      const animalComDuasFotos = {
+        ...mockAnimal,
+        fotos: [
+          {
+            id: 'foto-1',
+            animalId: '123',
+            url: 'https://exemplo.com/f1.jpg',
+            principal: true,
+            ativo: true,
+          },
+          {
+            id: 'foto-2',
+            animalId: '123',
+            url: 'https://exemplo.com/f2.jpg',
+            principal: false,
+            ativo: true,
+          },
+        ],
+      };
+      mockRepository.buscarPorId.mockResolvedValue(animalComDuasFotos);
+      mockRepository.buscarFotoPorId.mockResolvedValue(
+        animalComDuasFotos.fotos[1],
+      );
+
+      const result = await service.removerFoto('123', 'foto-2', usuarioAdmin);
+
+      expect(mockRepository.removerFoto).toHaveBeenCalledWith(
+        'foto-2',
+        usuarioAdmin.sub,
+      );
+      expect(mockRepository.definirFotoPrincipal).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: true });
+    });
+  });
+
+  describe('definirFotoPrincipal', () => {
+    it('deve lançar NotFoundException se o animal não for encontrado', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(null);
+
+      await expect(
+        service.definirFotoPrincipal('999', 'foto-1', usuarioAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar NotFoundException se a foto não for encontrada ou não pertencer ao animal', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.buscarFotoPorId.mockResolvedValue(null);
+
+      await expect(
+        service.definirFotoPrincipal('123', 'foto-inexistente', usuarioAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve definir a foto principal com sucesso', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.buscarFotoPorId.mockResolvedValue({
+        id: 'foto-1',
+        animalId: '123',
+        url: 'https://exemplo.com/rex.jpg',
+        principal: false,
+        ativo: true,
+      });
+
+      const result = await service.definirFotoPrincipal(
+        '123',
+        'foto-1',
+        usuarioAdmin,
+      );
+
+      expect(mockRepository.definirFotoPrincipal).toHaveBeenCalledWith(
+        '123',
+        'foto-1',
+        usuarioAdmin.sub,
+      );
+      expect(result).toEqual({ ok: true });
+    });
+  });
 });
