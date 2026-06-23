@@ -19,6 +19,9 @@ import { AnimaisService } from './animais.service';
 import { CriarAnimalDto } from './dto/criar-animal.dto';
 import { AtualizarAnimalDto } from './dto/atualizar-animal.dto';
 import { AnimalResponseDto } from './dto/animal-response.dto';
+import { FiltrarAnimaisDto } from './dto/filtrar-animais.dto';
+import { AdicionarFotoDto } from './dto/adicionar-foto.dto';
+import { ExcluirUsuarioDto } from '#src/modules/usuarios/dto/excluir-usuario.dto';
 import { JwtAuthGuard } from '#src/common/guards/jwt-auth.guard';
 import { PerfilGuard } from '#src/common/guards/perfil.guard';
 import { UsuarioAtual } from '#src/common/decorators/usuario-atual.decorator';
@@ -32,7 +35,7 @@ export class AnimaisController {
   constructor(private readonly animaisService: AnimaisService) {}
 
   @Post()
-  @Perfis(Perfil.ADMIN)
+  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
   @HttpCode(HttpStatus.CREATED)
   @ApiResponse({
     status: 201,
@@ -47,49 +50,10 @@ export class AnimaisController {
   @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
   @ApiResponse({
     status: 200,
-    description: 'Listagem de animais paginada',
+    description: 'Listagem de animais paginada com filtros combinados',
   })
-  listar(
-    @Query('skip') skip: string = '0',
-    @Query('take') take: string = '10',
-  ) {
-    return this.animaisService.listar(parseInt(skip), parseInt(take));
-  }
-
-  @Get('especie/:especie')
-  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
-  @ApiResponse({
-    status: 200,
-    description: 'Animais filtrados por espécie',
-  })
-  listarPorEspecie(
-    @Param('especie') especie: string,
-    @Query('skip') skip: string = '0',
-    @Query('take') take: string = '10',
-  ) {
-    return this.animaisService.listarPorEspecie(
-      especie,
-      parseInt(skip),
-      parseInt(take),
-    );
-  }
-
-  @Get('status/:status')
-  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
-  @ApiResponse({
-    status: 200,
-    description: 'Animais filtrados por status',
-  })
-  listarPorStatus(
-    @Param('status') status: string,
-    @Query('skip') skip: string = '0',
-    @Query('take') take: string = '10',
-  ) {
-    return this.animaisService.listarPorStatus(
-      status,
-      parseInt(skip),
-      parseInt(take),
-    );
+  listar(@Query() query: FiltrarAnimaisDto) {
+    return this.animaisService.listar(query);
   }
 
   @Get(':id')
@@ -104,7 +68,7 @@ export class AnimaisController {
   }
 
   @Patch(':id')
-  @Perfis(Perfil.ADMIN)
+  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
   @ApiResponse({
     status: 200,
     description: 'Animal atualizado com sucesso',
@@ -127,8 +91,58 @@ export class AnimaisController {
   })
   excluir(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ExcluirUsuarioDto,
     @UsuarioAtual() usuario: JwtPayload,
   ) {
-    return this.animaisService.excluir(id, usuario);
+    return this.animaisService.excluir(id, dto.senhaAdmin, usuario);
+  }
+
+  // Endpoints de gerenciamento de fotos do animal (RN11/RN20)
+  @Post(':id/fotos')
+  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiResponse({
+    status: 201,
+    description: 'Foto adicionada com sucesso',
+  })
+  adicionarFoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdicionarFotoDto,
+    @UsuarioAtual() usuario: JwtPayload,
+  ) {
+    return this.animaisService.adicionarFoto(
+      id,
+      dto.url,
+      dto.principal ?? false,
+      usuario,
+    );
+  }
+
+  @Patch(':id/fotos/:fotoId/principal')
+  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
+  @ApiResponse({
+    status: 200,
+    description: 'Definido como foto principal do animal com sucesso',
+  })
+  definirFotoPrincipal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('fotoId', ParseUUIDPipe) fotoId: string,
+    @UsuarioAtual() usuario: JwtPayload,
+  ) {
+    return this.animaisService.definirFotoPrincipal(id, fotoId, usuario);
+  }
+
+  @Delete(':id/fotos/:fotoId')
+  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
+  @ApiResponse({
+    status: 200,
+    description: 'Foto do animal removida com sucesso',
+  })
+  removerFoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('fotoId', ParseUUIDPipe) fotoId: string,
+    @UsuarioAtual() usuario: JwtPayload,
+  ) {
+    return this.animaisService.removerFoto(id, fotoId, usuario);
   }
 }

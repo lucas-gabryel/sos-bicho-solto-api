@@ -47,6 +47,12 @@ export class AtualizarAnimalDto {
   @Type(() => Number)
   readonly pesoInicial?: number;
 
+  @ApiPropertyOptional({ example: 11.2, type: 'number' })
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  readonly pesoAtual?: number;
+
   @ApiPropertyOptional({ example: false })
   @IsBoolean()
   @IsOptional()

@@ -1,5 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Animal, StatusAnimal } from '@prisma/client';
+import { Animal, StatusAnimal, FotoAnimal } from '@prisma/client';
+
+export class FotoResponseDto {
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174002' })
+  readonly id!: string;
+
+  @ApiProperty({ example: 'https://exemplo.com/rex.jpg' })
+  readonly url!: string;
+
+  @ApiProperty({ example: true })
+  readonly principal!: boolean;
+}
 
 export class AnimalResponseDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -62,12 +73,26 @@ export class AnimalResponseDto {
   @ApiProperty({ example: '2026-06-21T10:00:00Z' })
   readonly modificadoEm!: Date;
 
-  static fromEntity(animal: Animal): AnimalResponseDto {
+  @ApiProperty({ type: [FotoResponseDto], required: false })
+  readonly fotos?: FotoResponseDto[];
+
+  static fromEntity(
+    animal: Animal & { fotos?: FotoAnimal[] },
+  ): AnimalResponseDto {
     const dto = new AnimalResponseDto();
     Object.assign(dto, {
       ...animal,
       pesoInicial: Number(animal.pesoInicial),
       pesoAtual: animal.pesoAtual ? Number(animal.pesoAtual) : null,
+      fotos: animal.fotos
+        ? animal.fotos
+            .filter((f) => f.ativo)
+            .map((f) => ({
+              id: f.id,
+              url: f.url,
+              principal: f.principal,
+            }))
+        : [],
     });
     return dto;
   }

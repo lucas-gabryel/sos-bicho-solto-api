@@ -6,45 +6,18 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Perfil {
-  ADMIN
-  PROTETOR
-}
-
-enum EspecieAnimal {
-  CAO
-  GATO
-}
-
-enum SexoAnimal {
-  MACHO
-  FEMEA
-}
-
-enum PorteAnimal {
-  PEQUENO
-  MEDIO
-  GRANDE
-}
-
-enum StatusAnimal {
-  ACOLHIMENTO
-  ADOTADO
-}
-
 model Usuario {
-  id              String   @id @default(uuid())
-  codigo          Int      @unique @default(autoincrement())
-  nome            String
-  email           String   @unique
-  senhaHash       String   @map("senha_hash")
-  perfil          Perfil   @default(PROTETOR)
-  ativo           Boolean  @default(true)
-  criadoEm        DateTime @default(now()) @map("criado_em")
-  criadoPorId     String?  @map("criado_por_id")
-  modificadoEm    DateTime @updatedAt @map("modificado_em")
-  modificadoPorId String?  @map("modificado_por_id")
-
+  id                 String   @id @default(uuid())
+  codigo             Int      @unique @default(autoincrement())
+  nome               String
+  email              String   @unique
+  senhaHash          String   @map("senha_hash")
+  perfil             Perfil   @default(PROTETOR)
+  ativo              Boolean  @default(true)
+  criadoEm           DateTime @default(now()) @map("criado_em")
+  criadoPorId        String?  @map("criado_por_id")
+  modificadoEm       DateTime @updatedAt @map("modificado_em")
+  modificadoPorId    String?  @map("modificado_por_id")
   adocoesRegistradas Adocao[] @relation("AdocaoProtetor")
 
   @@map("usuarios")
@@ -64,9 +37,8 @@ model Tutor {
   criadoPorId     String?  @map("criado_por_id")
   modificadoEm    DateTime @updatedAt @map("modificado_em")
   modificadoPorId String?  @map("modificado_por_id")
-
-  animais Animal[]
-  adocoes Adocao[]
+  adocoes         Adocao[]
+  animais         Animal[]
 
   @@map("tutores")
 }
@@ -94,10 +66,9 @@ model Animal {
   criadoPorId     String?       @map("criado_por_id")
   modificadoEm    DateTime      @updatedAt @map("modificado_em")
   modificadoPorId String?       @map("modificado_por_id")
-
-  tutor   Tutor?       @relation(fields: [tutorId], references: [id])
-  fotos   FotoAnimal[]
-  adocoes Adocao[]
+  adocoes         Adocao[]
+  tutor           Tutor?        @relation(fields: [tutorId], references: [id])
+  fotos           FotoAnimal[]
 
   @@index([status])
   @@index([especie])
@@ -115,8 +86,7 @@ model FotoAnimal {
   criadoPorId     String?  @map("criado_por_id")
   modificadoEm    DateTime @updatedAt @map("modificado_em")
   modificadoPorId String?  @map("modificado_por_id")
-
-  animal Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animal          Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([animalId])
   @@map("fotos_animal")
@@ -132,12 +102,37 @@ model Adocao {
   devolvidoEm          DateTime? @map("devolvido_em")
   devolvidoPorId       String?   @map("devolvido_por_id")
   observacoesDevolucao String?   @map("observacoes_devolucao")
-
-  animal   Animal  @relation(fields: [animalId], references: [id])
-  tutor    Tutor   @relation(fields: [tutorId], references: [id])
-  protetor Usuario @relation("AdocaoProtetor", fields: [protetorId], references: [id])
+  animal               Animal    @relation(fields: [animalId], references: [id])
+  protetor             Usuario   @relation("AdocaoProtetor", fields: [protetorId], references: [id])
+  tutor                Tutor     @relation(fields: [tutorId], references: [id])
 
   @@index([animalId])
   @@index([tutorId])
   @@map("adocoes")
+}
+
+enum Perfil {
+  ADMIN
+  PROTETOR
+}
+
+enum EspecieAnimal {
+  CAO
+  GATO
+}
+
+enum SexoAnimal {
+  MACHO
+  FEMEA
+}
+
+enum PorteAnimal {
+  PEQUENO
+  MEDIO
+  GRANDE
+}
+
+enum StatusAnimal {
+  ACOLHIMENTO
+  ADOTADO
 }

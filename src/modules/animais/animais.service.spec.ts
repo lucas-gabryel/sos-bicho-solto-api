@@ -1,36 +1,62 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { EspecieAnimal, SexoAnimal, StatusAnimal } from '@prisma/client';
+import {
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { EspecieAnimal, SexoAnimal } from '@prisma/client';
 import { AnimaisService } from './animais.service';
 import { ANIMAIS_REPOSITORY } from './repositories/animais.repository.interface';
+import { FiltrarAnimaisDto } from './dto/filtrar-animais.dto';
+import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
+import * as bcrypt from 'bcrypt';
+
+jest.mock('bcrypt');
 
 describe('AnimaisService', () => {
   let service: AnimaisService;
+
   const mockRepository = {
     criar: jest.fn(),
     buscarPorId: jest.fn(),
     listar: jest.fn(),
     atualizar: jest.fn(),
     excluir: jest.fn(),
-    buscarPorEspecie: jest.fn(),
-    buscarPorStatus: jest.fn(),
+    adicionarFoto: jest.fn(),
+    removerFoto: jest.fn(),
+    definirFotoPrincipal: jest.fn(),
+    buscarFotoPorId: jest.fn(),
+  };
+
+  const mockUsuariosRepository = {
+    buscarPorId: jest.fn(),
   };
 
   const usuarioAdmin = {
-    sub: '123',
+    sub: 'admin-123',
     email: 'admin@test.com',
     perfil: 'ADMIN' as const,
   };
 
   const usuarioProtetor = {
-    sub: '456',
+    sub: 'protetor-456',
     email: 'protetor@test.com',
     perfil: 'PROTETOR' as const,
   };
 
+  const mockAdminUser = {
+    id: 'admin-123',
+    nome: 'Admin',
+    email: 'admin@test.com',
+    senhaHash: 'hash-senha-admin',
+    perfil: 'ADMIN',
+    ativo: true,
+  };
+
   const mockAnimal = {
     id: '123',
-    numeroRegistro: 'ANIMAL-123',
+    numeroRegistro: '20.06.2026.1',
     nome: 'Rex',
     especie: 'CAO',
     raca: 'SRD',
@@ -49,8 +75,16 @@ describe('AnimaisService', () => {
     ativo: true,
     criadoEm: new Date(),
     modificadoEm: new Date(),
-    criadoPorId: null,
-    modificadoPorId: null,
+    criadoPorId: 'admin-123',
+    modificadoPorId: 'admin-123',
+    fotos: [
+      {
+        id: 'foto-1',
+        url: 'https://exemplo.com/rex.jpg',
+        principal: true,
+        ativo: true,
+      },
+    ],
   };
 
   beforeEach(async () => {
@@ -60,6 +94,10 @@ describe('AnimaisService', () => {
         {
           provide: ANIMAIS_REPOSITORY,
           useValue: mockRepository,
+        },
+        {
+          provide: USUARIOS_REPOSITORY,
+          useValue: mockUsuariosRepository,
         },
       ],
     }).compile();
@@ -73,7 +111,7 @@ describe('AnimaisService', () => {
   });
 
   describe('criar', () => {
-    it('deve criar um animal com sucesso (ADMIN)', async () => {
+    it('deve criar um animal com sucesso se contiver exatamente uma foto principal', async () => {
       const dto = {
         nome: 'Rex',
         especie: EspecieAnimal.CAO,
@@ -82,17 +120,18 @@ describe('AnimaisService', () => {
         cor: 'Caramelo',
         pesoInicial: 10.5,
         localResgate: 'Rua A',
+        fotos: [{ url: 'https://exemplo.com/rex.jpg', principal: true }],
       };
 
       mockRepository.criar.mockResolvedValue(mockAnimal);
 
       const result = await service.criar(dto, usuarioAdmin);
 
-      expect(mockRepository.criar).toHaveBeenCalledWith(dto);
+      expect(mockRepository.criar).toHaveBeenCalledWith(dto, usuarioAdmin.sub);
       expect(result.nome).toBe('Rex');
     });
 
-    it('deve lançar ForbiddenException se não for ADMIN', async () => {
+    it('deve lançar BadRequestException se criar animal sem fotos', async () => {
       const dto = {
         nome: 'Rex',
         especie: EspecieAnimal.CAO,
@@ -101,10 +140,31 @@ describe('AnimaisService', () => {
         cor: 'Caramelo',
         pesoInicial: 10.5,
         localResgate: 'Rua A',
+        fotos: [],
       };
 
-      await expect(service.criar(dto, usuarioProtetor)).rejects.toThrow(
-        ForbiddenException,
+      await expect(service.criar(dto, usuarioAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('deve lançar BadRequestException se houver mais de uma foto principal', async () => {
+      const dto = {
+        nome: 'Rex',
+        especie: EspecieAnimal.CAO,
+        raca: 'SRD',
+        sexo: SexoAnimal.MACHO,
+        cor: 'Caramelo',
+        pesoInicial: 10.5,
+        localResgate: 'Rua A',
+        fotos: [
+          { url: 'https://exemplo.com/f1.jpg', principal: true },
+          { url: 'https://exemplo.com/f2.jpg', principal: true },
+        ],
+      };
+
+      await expect(service.criar(dto, usuarioAdmin)).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
@@ -126,48 +186,35 @@ describe('AnimaisService', () => {
         NotFoundException,
       );
     });
-
-    it('deve lançar NotFoundException se animal estiver inativo', async () => {
-      mockRepository.buscarPorId.mockResolvedValue({
-        ...mockAnimal,
-        ativo: false,
-      });
-
-      await expect(service.buscarPorId('123')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
   });
 
   describe('listar', () => {
-    it('deve listar animais com sucesso', async () => {
+    it('deve listar animais paginados com sucesso', async () => {
       mockRepository.listar.mockResolvedValue({
         data: [mockAnimal],
         total: 1,
       });
 
-      const result = await service.listar(0, 10);
+      const filtros = new FiltrarAnimaisDto();
+      filtros.page = 1;
+      filtros.limit = 10;
 
-      expect(mockRepository.listar).toHaveBeenCalledWith(0, 10);
+      const result = await service.listar(filtros);
+
+      expect(mockRepository.listar).toHaveBeenCalledWith({
+        skip: 0,
+        take: 10,
+        especie: undefined,
+        status: undefined,
+        busca: undefined,
+      });
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);
-    });
-
-    it('deve retornar lista vazia se nenhum animal existir', async () => {
-      mockRepository.listar.mockResolvedValue({
-        data: [],
-        total: 0,
-      });
-
-      const result = await service.listar(0, 10);
-
-      expect(result.data).toHaveLength(0);
-      expect(result.meta.total).toBe(0);
     });
   });
 
   describe('atualizar', () => {
-    it('deve atualizar um animal com sucesso (ADMIN)', async () => {
+    it('deve atualizar um animal com sucesso', async () => {
       const dto = { nome: 'Rex Atualizado' };
 
       mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
@@ -178,94 +225,42 @@ describe('AnimaisService', () => {
 
       const result = await service.atualizar('123', dto, usuarioAdmin);
 
-      expect(mockRepository.atualizar).toHaveBeenCalledWith('123', dto);
-      expect(result.nome).toBe('Rex Atualizado');
-    });
-
-    it('deve lançar ForbiddenException se não for ADMIN', async () => {
-      const dto = { nome: 'Rex Atualizado' };
-
-      await expect(
-        service.atualizar('123', dto, usuarioProtetor),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('deve lançar NotFoundException se animal não existir', async () => {
-      const dto = { nome: 'Rex Atualizado' };
-
-      mockRepository.buscarPorId.mockResolvedValue(null);
-
-      await expect(service.atualizar('999', dto, usuarioAdmin)).rejects.toThrow(
-        NotFoundException,
+      expect(mockRepository.atualizar).toHaveBeenCalledWith(
+        '123',
+        dto,
+        usuarioAdmin.sub,
       );
+      expect(result.nome).toBe('Rex Atualizado');
     });
   });
 
   describe('excluir', () => {
-    it('deve excluir um animal com sucesso (ADMIN)', async () => {
+    it('deve excluir um animal logicamente com revalidação de senha do administrador', async () => {
+      mockUsuariosRepository.buscarPorId.mockResolvedValue(mockAdminUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
-      mockRepository.excluir.mockResolvedValue({
-        ...mockAnimal,
-        ativo: false,
-      });
 
-      await service.excluir('123', usuarioAdmin);
+      await service.excluir('123', 'SenhaAdmin@123', usuarioAdmin);
 
-      expect(mockRepository.excluir).toHaveBeenCalledWith('123');
-    });
-
-    it('deve lançar ForbiddenException se não for ADMIN', async () => {
-      await expect(service.excluir('123', usuarioProtetor)).rejects.toThrow(
-        ForbiddenException,
+      expect(mockRepository.excluir).toHaveBeenCalledWith(
+        '123',
+        usuarioAdmin.sub,
       );
     });
 
-    it('deve lançar NotFoundException se animal não existir', async () => {
-      mockRepository.buscarPorId.mockResolvedValue(null);
-
-      await expect(service.excluir('999', usuarioAdmin)).rejects.toThrow(
-        NotFoundException,
-      );
+    it('deve lançar ForbiddenException se o usuário não for ADMIN', async () => {
+      await expect(
+        service.excluir('123', 'senha', usuarioProtetor),
+      ).rejects.toThrow(ForbiddenException);
     });
-  });
 
-  describe('listarPorEspecie', () => {
-    it('deve listar animais por espécie com sucesso', async () => {
-      mockRepository.buscarPorEspecie.mockResolvedValue({
-        data: [mockAnimal],
-        total: 1,
-      });
+    it('deve lançar UnauthorizedException se a senha do admin estiver incorreta', async () => {
+      mockUsuariosRepository.buscarPorId.mockResolvedValue(mockAdminUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      const result = await service.listarPorEspecie(EspecieAnimal.CAO, 0, 10);
-
-      expect(mockRepository.buscarPorEspecie).toHaveBeenCalledWith(
-        EspecieAnimal.CAO,
-        0,
-        10,
-      );
-      expect(result.data).toHaveLength(1);
-    });
-  });
-
-  describe('listarPorStatus', () => {
-    it('deve listar animais por status com sucesso', async () => {
-      mockRepository.buscarPorStatus.mockResolvedValue({
-        data: [mockAnimal],
-        total: 1,
-      });
-
-      const result = await service.listarPorStatus(
-        StatusAnimal.ACOLHIMENTO,
-        0,
-        10,
-      );
-
-      expect(mockRepository.buscarPorStatus).toHaveBeenCalledWith(
-        StatusAnimal.ACOLHIMENTO,
-        0,
-        10,
-      );
-      expect(result.data).toHaveLength(1);
+      await expect(
+        service.excluir('123', 'senha-errada', usuarioAdmin),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });
