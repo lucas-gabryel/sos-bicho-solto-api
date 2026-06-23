@@ -167,6 +167,29 @@ describe('AnimaisService', () => {
         BadRequestException,
       );
     });
+
+    it('deve marcar a primeira foto como principal caso nenhuma seja explicitamente principal', async () => {
+      const dto = {
+        nome: 'Rex',
+        especie: EspecieAnimal.CAO,
+        raca: 'SRD',
+        sexo: SexoAnimal.MACHO,
+        cor: 'Caramelo',
+        pesoInicial: 10.5,
+        localResgate: 'Rua A',
+        fotos: [
+          { url: 'https://exemplo.com/f1.jpg' },
+          { url: 'https://exemplo.com/f2.jpg', principal: false },
+        ],
+      };
+
+      mockRepository.criar.mockResolvedValue(mockAnimal);
+
+      await service.criar(dto, usuarioAdmin);
+
+      expect(dto.fotos[0].principal).toBe(true);
+      expect(mockRepository.criar).toHaveBeenCalledWith(dto, usuarioAdmin.sub);
+    });
   });
 
   describe('buscarPorId', () => {

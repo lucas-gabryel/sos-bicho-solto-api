@@ -39,6 +39,12 @@ export class AnimaisService {
         'O animal deve ter pelo menos uma foto inicial.',
       );
     }
+
+    const temPrincipal = fotos.some((f) => f.principal);
+    if (!temPrincipal) {
+      fotos[0].principal = true;
+    }
+
     const principais = fotos.filter((f) => f.principal);
     if (principais.length !== 1) {
       throw new BadRequestException(

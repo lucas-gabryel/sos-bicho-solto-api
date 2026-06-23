@@ -21,9 +21,10 @@ export class FotoAnimalDto {
   @IsNotEmpty()
   url!: string;
 
-  @ApiProperty({ example: true })
+  @ApiProperty({ example: true, required: false })
   @IsBoolean()
-  principal!: boolean;
+  @IsOptional()
+  principal?: boolean;
 }
 
 export class CriarAnimalDto {

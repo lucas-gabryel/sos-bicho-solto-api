@@ -101,7 +101,8 @@ export class TutoresController {
   @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
   @ApiResponse({
     status: 200,
-    description: 'Animais vinculados a este tutor',
+    description:
+      'Animais vinculados a este tutor (retorna no máximo os 100 primeiros animais)',
     type: [AnimalResponseDto],
   })
   buscarAnimaisDoTutor(@Param('id', ParseUUIDPipe) id: string) {
