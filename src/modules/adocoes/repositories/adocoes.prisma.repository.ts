@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Adocao, StatusAnimal } from '@prisma/client';
+import { Adocao, Prisma, StatusAnimal } from '@prisma/client';
 import { PrismaService } from '#src/database/prisma.service';
 import {
   IAdocoesRepository,
+  ListarAdocoesParams,
   RegistrarAdocaoData,
   RegistrarDevolucaoData,
 } from './adocoes.repository.interface';
@@ -25,6 +26,39 @@ export class AdocoesPrismaRepository implements IAdocoesRepository {
       },
       orderBy: { dataAdocao: 'desc' },
     });
+  }
+
+  async listar(
+    params: ListarAdocoesParams,
+  ): Promise<{ data: Adocao[]; total: number }> {
+    const where: Prisma.AdocaoWhereInput = {};
+
+    if (params.tutorId) {
+      where.tutorId = params.tutorId;
+    }
+
+    if (params.animalId) {
+      where.animalId = params.animalId;
+    }
+
+    if (params.de || params.ate) {
+      where.dataAdocao = {
+        ...(params.de && { gte: params.de }),
+        ...(params.ate && { lte: params.ate }),
+      };
+    }
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.adocao.findMany({
+        skip: params.skip,
+        take: params.take,
+        where,
+        orderBy: { dataAdocao: 'desc' },
+      }),
+      this.prisma.adocao.count({ where }),
+    ]);
+
+    return { data, total };
   }
 
   registrar(data: RegistrarAdocaoData): Promise<Adocao | null> {

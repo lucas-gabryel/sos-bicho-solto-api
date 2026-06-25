@@ -2,16 +2,19 @@ import type { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import type { IAnimaisRepository } from '#src/modules/animais/repositories/animais.repository.interface';
 import type { ITutoresRepository } from '#src/modules/tutores/repositories/tutores.repository.interface';
 import type { IAdocoesRepository } from './repositories/adocoes.repository.interface';
+import type { RespostaPaginada } from '#src/common/dto/paginacao.dto';
 import {
   BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { paginar } from '#src/common/dto/paginacao.dto';
 import { StatusAnimal } from '@prisma/client';
 import { ANIMAIS_REPOSITORY } from '#src/modules/animais/repositories/animais.repository.interface';
 import { TUTORES_REPOSITORY } from '#src/modules/tutores/repositories/tutores.repository.interface';
 import { AdocaoResponseDto } from './dto/adocao-response.dto';
+import { FiltrarAdocoesDto } from './dto/filtrar-adocoes.dto';
 import { RegistrarAdocaoDto } from './dto/registrar-adocao.dto';
 import { RegistrarDevolucaoDto } from './dto/registrar-devolucao.dto';
 import { ADOCOES_REPOSITORY } from './repositories/adocoes.repository.interface';
@@ -67,6 +70,31 @@ export class AdocoesService {
     }
 
     return AdocaoResponseDto.fromEntity(adocao);
+  }
+
+  async listar(
+    filtros: FiltrarAdocoesDto,
+  ): Promise<RespostaPaginada<AdocaoResponseDto>> {
+    if (filtros.de && filtros.ate && filtros.de > filtros.ate) {
+      throw new BadRequestException(
+        'A data inicial não pode ser maior que a data final.',
+      );
+    }
+
+    const { data, total } = await this.adocoesRepository.listar({
+      skip: filtros.skip,
+      take: filtros.take,
+      tutorId: filtros.tutorId,
+      animalId: filtros.animalId,
+      de: filtros.de,
+      ate: filtros.ate,
+    });
+
+    return paginar(
+      data.map((adocao) => AdocaoResponseDto.fromEntity(adocao)),
+      total,
+      filtros,
+    );
   }
 
   async devolver(
