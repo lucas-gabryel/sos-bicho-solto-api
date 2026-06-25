@@ -25,16 +25,25 @@ export class AdocoesPrismaRepository implements IAdocoesRepository {
     });
   }
 
-  registrar(data: RegistrarAdocaoData): Promise<Adocao> {
+  registrar(data: RegistrarAdocaoData): Promise<Adocao | null> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.animal.update({
-        where: { id: data.animalId },
+      const animalAtualizado = await tx.animal.updateMany({
+        where: {
+          id: data.animalId,
+          ativo: true,
+          tutorId: null,
+          status: StatusAnimal.ACOLHIMENTO,
+        },
         data: {
           tutorId: data.tutorId,
           status: StatusAnimal.ADOTADO,
           modificadoPorId: data.protetorId,
         },
       });
+
+      if (animalAtualizado.count === 0) {
+        return null;
+      }
 
       return tx.adocao.create({
         data: {

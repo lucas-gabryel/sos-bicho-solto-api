@@ -19,6 +19,6 @@ export interface RegistrarDevolucaoData {
 export interface IAdocoesRepository {
   buscarPorId(id: string): Promise<Adocao | null>;
   buscarAtivaPorAnimalId(animalId: string): Promise<Adocao | null>;
-  registrar(data: RegistrarAdocaoData): Promise<Adocao>;
+  registrar(data: RegistrarAdocaoData): Promise<Adocao | null>;
   devolver(data: RegistrarDevolucaoData): Promise<Adocao>;
 }
