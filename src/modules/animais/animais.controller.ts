@@ -84,9 +84,9 @@ export class AnimaisController {
 
   @Delete(':id')
   @Perfis(Perfil.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiResponse({
-    status: 204,
+    status: 200,
     description: 'Animal excluído com sucesso',
   })
   excluir(
@@ -97,7 +97,6 @@ export class AnimaisController {
     return this.animaisService.excluir(id, dto.senhaAdmin, usuario);
   }
 
-  // Endpoints de gerenciamento de fotos do animal (RN11/RN20)
   @Post(':id/fotos')
   @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
   @HttpCode(HttpStatus.CREATED)

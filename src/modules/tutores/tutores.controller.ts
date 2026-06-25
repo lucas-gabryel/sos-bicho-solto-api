@@ -85,9 +85,9 @@ export class TutoresController {
 
   @Delete(':id')
   @Perfis(Perfil.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiResponse({
-    status: 204,
+    status: 200,
     description: 'Tutor excluído com sucesso',
   })
   excluir(
