@@ -38,9 +38,7 @@ export class AdocoesService {
     }
 
     if (animal.status !== StatusAnimal.ACOLHIMENTO || animal.tutorId) {
-      throw new BadRequestException(
-        'Animal não está disponível para adoção.',
-      );
+      throw new BadRequestException('Animal não está disponível para adoção.');
     }
 
     const tutor = await this.tutoresRepository.buscarPorId(dto.tutorId);
@@ -63,6 +61,10 @@ export class AdocoesService {
       protetorId: usuario.sub,
       observacoes: dto.observacoes,
     });
+
+    if (!adocao) {
+      throw new BadRequestException('Animal não está disponível para adoção.');
+    }
 
     return AdocaoResponseDto.fromEntity(adocao);
   }
