@@ -11,6 +11,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { AnimaisModule } from './modules/animais/animais.module';
 import { TutoresModule } from './modules/tutores/tutores.module';
 import { AdocoesModule } from './modules/adocoes/adocoes.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AdocoesModule } from './modules/adocoes/adocoes.module';
     AnimaisModule,
     TutoresModule,
     AdocoesModule,
+    DashboardModule,
     HealthModule,
   ],
 
