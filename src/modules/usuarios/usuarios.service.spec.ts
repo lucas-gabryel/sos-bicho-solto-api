@@ -109,7 +109,6 @@ describe('UsuariosService', () => {
       });
       const resultado = await service.listar(filtros);
 
-      // a filtragem de ativos vive no repositório (mockado aqui); o service delega a ele.
       expect(repository.listar).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 0, take: 10 }),
       );

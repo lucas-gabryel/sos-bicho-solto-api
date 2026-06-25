@@ -118,7 +118,7 @@ export class TutoresService {
     id: string,
     senhaAdmin: string,
     usuario: JwtPayload,
-  ): Promise<void> {
+  ): Promise<{ ok: true }> {
     await this.buscarAtivoOuFalhar(id);
 
     const admin = await this.usuariosRepository.buscarPorId(usuario.sub);
@@ -127,6 +127,8 @@ export class TutoresService {
     }
 
     await this.tutoresRepository.excluir(id, usuario.sub);
+
+    return { ok: true };
   }
 
   async buscarAnimaisDoTutor(

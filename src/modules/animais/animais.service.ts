@@ -32,7 +32,6 @@ export class AnimaisService {
     dto: CriarAnimalDto,
     usuario: JwtPayload,
   ): Promise<AnimalResponseDto> {
-    // Validar se há exatamente uma foto principal
     const fotos = dto.fotos || [];
     if (fotos.length === 0) {
       throw new BadRequestException(
@@ -107,7 +106,7 @@ export class AnimaisService {
     id: string,
     senhaAdmin: string,
     usuario: JwtPayload,
-  ): Promise<void> {
+  ): Promise<{ ok: true }> {
     if (usuario.perfil !== 'ADMIN') {
       throw new ForbiddenException('Apenas ADMIN pode excluir animais.');
     }
@@ -124,6 +123,8 @@ export class AnimaisService {
     }
 
     await this.animaisRepository.excluir(id, usuario.sub);
+
+    return { ok: true };
   }
 
   async adicionarFoto(
