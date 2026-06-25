@@ -2,11 +2,13 @@ import type { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -17,6 +19,7 @@ import { JwtAuthGuard } from '#src/common/guards/jwt-auth.guard';
 import { PerfilGuard } from '#src/common/guards/perfil.guard';
 import { AdocoesService } from './adocoes.service';
 import { AdocaoResponseDto } from './dto/adocao-response.dto';
+import { FiltrarAdocoesDto } from './dto/filtrar-adocoes.dto';
 import { RegistrarAdocaoDto } from './dto/registrar-adocao.dto';
 import { RegistrarDevolucaoDto } from './dto/registrar-devolucao.dto';
 
@@ -40,6 +43,16 @@ export class AdocoesController {
     @UsuarioAtual() usuario: JwtPayload,
   ) {
     return this.adocoesService.registrar(dto, usuario);
+  }
+
+  @Get()
+  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
+  @ApiResponse({
+    status: 200,
+    description: 'Histórico de adoções paginado com filtros combinados',
+  })
+  listar(@Query() query: FiltrarAdocoesDto) {
+    return this.adocoesService.listar(query);
   }
 
   @Post(':id/devolucao')

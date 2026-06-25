@@ -17,9 +17,21 @@ export interface RegistrarDevolucaoData {
   observacoesDevolucao?: string;
 }
 
+export interface ListarAdocoesParams {
+  skip: number;
+  take: number;
+  tutorId?: string;
+  animalId?: string;
+  de?: Date;
+  ate?: Date;
+}
+
 export interface IAdocoesRepository {
   buscarPorId(id: string): Promise<Adocao | null>;
   buscarAtivaPorAnimalId(animalId: string): Promise<Adocao | null>;
+  listar(
+    params: ListarAdocoesParams,
+  ): Promise<{ data: Adocao[]; total: number }>;
   registrar(data: RegistrarAdocaoData): Promise<Adocao | null>;
   devolver(data: RegistrarDevolucaoData): Promise<Adocao | null>;
 }
