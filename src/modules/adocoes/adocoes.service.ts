@@ -102,9 +102,16 @@ export class AdocoesService {
     const adocaoDevolvida = await this.adocoesRepository.devolver({
       id,
       animalId: adocao.animalId,
+      tutorId: adocao.tutorId,
       devolvidoPorId: usuario.sub,
       observacoesDevolucao: dto.observacoes,
     });
+
+    if (!adocaoDevolvida) {
+      throw new BadRequestException(
+        'Adoção não está disponível para devolução.',
+      );
+    }
 
     return AdocaoResponseDto.fromEntity(adocaoDevolvida);
   }
