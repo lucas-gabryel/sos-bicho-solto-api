@@ -7,6 +7,8 @@ import {
   RegistrarDevolucaoData,
 } from './adocoes.repository.interface';
 
+class DevolucaoInvalidaError extends Error {}
+
 @Injectable()
 export class AdocoesPrismaRepository implements IAdocoesRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -56,27 +58,51 @@ export class AdocoesPrismaRepository implements IAdocoesRepository {
     });
   }
 
-  devolver(data: RegistrarDevolucaoData): Promise<Adocao> {
-    return this.prisma.$transaction(async (tx) => {
-      const adocao = await tx.adocao.update({
-        where: { id: data.id },
-        data: {
-          devolvidoEm: new Date(),
-          devolvidoPorId: data.devolvidoPorId,
-          observacoesDevolucao: data.observacoesDevolucao,
-        },
-      });
+  async devolver(data: RegistrarDevolucaoData): Promise<Adocao | null> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const adocaoAtualizada = await tx.adocao.updateMany({
+          where: {
+            id: data.id,
+            devolvidoEm: null,
+          },
+          data: {
+            devolvidoEm: new Date(),
+            devolvidoPorId: data.devolvidoPorId,
+            observacoesDevolucao: data.observacoesDevolucao,
+          },
+        });
 
-      await tx.animal.update({
-        where: { id: data.animalId },
-        data: {
-          tutorId: null,
-          status: StatusAnimal.ACOLHIMENTO,
-          modificadoPorId: data.devolvidoPorId,
-        },
-      });
+        if (adocaoAtualizada.count === 0) {
+          return null;
+        }
 
-      return adocao;
-    });
+        const animalAtualizado = await tx.animal.updateMany({
+          where: {
+            id: data.animalId,
+            ativo: true,
+            tutorId: data.tutorId,
+            status: StatusAnimal.ADOTADO,
+          },
+          data: {
+            tutorId: null,
+            status: StatusAnimal.ACOLHIMENTO,
+            modificadoPorId: data.devolvidoPorId,
+          },
+        });
+
+        if (animalAtualizado.count === 0) {
+          throw new DevolucaoInvalidaError();
+        }
+
+        return tx.adocao.findUniqueOrThrow({ where: { id: data.id } });
+      });
+    } catch (error) {
+      if (error instanceof DevolucaoInvalidaError) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 }
