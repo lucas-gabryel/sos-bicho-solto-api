@@ -10,6 +10,7 @@ import { HealthModule } from './modules/health/health.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { AnimaisModule } from './modules/animais/animais.module';
 import { TutoresModule } from './modules/tutores/tutores.module';
+import { AdocoesModule } from './modules/adocoes/adocoes.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TutoresModule } from './modules/tutores/tutores.module';
     UsuariosModule,
     AnimaisModule,
     TutoresModule,
+    AdocoesModule,
     HealthModule,
   ],
 
