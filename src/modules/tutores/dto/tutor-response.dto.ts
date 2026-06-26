@@ -32,7 +32,15 @@ export class TutorResponseDto {
   @ApiProperty({ example: '2026-06-21T10:00:00Z' })
   readonly modificadoEm!: Date;
 
-  static fromEntity(tutor: Tutor): TutorResponseDto {
+  @ApiProperty({
+    example: 2,
+    description: 'Quantidade de animais ativos vinculados ao tutor.',
+  })
+  readonly totalAnimaisAdotados!: number;
+
+  static fromEntity(
+    tutor: Tutor & { totalAnimaisAdotados?: number },
+  ): TutorResponseDto {
     const dto = new TutorResponseDto();
     Object.assign(dto, {
       id: tutor.id,
@@ -45,6 +53,7 @@ export class TutorResponseDto {
       dataNascimento: tutor.dataNascimento,
       criadoEm: tutor.criadoEm,
       modificadoEm: tutor.modificadoEm,
+      totalAnimaisAdotados: tutor.totalAnimaisAdotados ?? 0,
     });
     return dto;
   }

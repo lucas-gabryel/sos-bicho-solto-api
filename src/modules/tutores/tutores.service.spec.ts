@@ -177,7 +177,7 @@ describe('TutoresService', () => {
   describe('listar', () => {
     it('deve retornar listagem paginada de tutores', async () => {
       mockTutoresRepository.listar.mockResolvedValue({
-        data: [mockTutor],
+        data: [{ ...mockTutor, totalAnimaisAdotados: 3 }],
         total: 1,
       });
 
@@ -193,6 +193,7 @@ describe('TutoresService', () => {
         busca: undefined,
       });
       expect(result.data).toHaveLength(1);
+      expect(result.data[0].totalAnimaisAdotados).toBe(3);
     });
   });
 

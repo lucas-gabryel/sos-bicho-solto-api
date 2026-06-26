@@ -6,22 +6,40 @@ import {
   AtualizarTutorData,
   ListarTutoresParams,
   ITutoresRepository,
+  TutorComContagem,
 } from './tutores.repository.interface';
+
+// Conta apenas os animais ativos vinculados ao tutor (mesmo critério usado
+// na listagem de animais do tutor em GET /tutores/:id/animais).
+const INCLUDE_CONTAGEM = {
+  _count: { select: { animais: { where: { ativo: true } } } },
+} satisfies Prisma.TutorInclude;
+
+type TutorComCount = Tutor & { _count: { animais: number } };
+
+function comContagem(tutor: TutorComCount): TutorComContagem {
+  const { _count, ...rest } = tutor;
+  return { ...rest, totalAnimaisAdotados: _count.animais };
+}
 
 @Injectable()
 export class TutoresPrismaRepository implements ITutoresRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(data: CriarTutorData): Promise<Tutor> {
-    return this.prisma.tutor.create({
+  async criar(data: CriarTutorData): Promise<TutorComContagem> {
+    const tutor = await this.prisma.tutor.create({
       data,
+      include: INCLUDE_CONTAGEM,
     });
+    return comContagem(tutor);
   }
 
-  async buscarPorId(id: string): Promise<Tutor | null> {
-    return this.prisma.tutor.findUnique({
+  async buscarPorId(id: string): Promise<TutorComContagem | null> {
+    const tutor = await this.prisma.tutor.findUnique({
       where: { id },
+      include: INCLUDE_CONTAGEM,
     });
+    return tutor ? comContagem(tutor) : null;
   }
 
   async buscarPorCpf(cpf: string): Promise<Tutor | null> {
@@ -57,18 +75,24 @@ export class TutoresPrismaRepository implements ITutoresRepository {
         take: params.take,
         where,
         orderBy: { criadoEm: 'desc' },
+        include: INCLUDE_CONTAGEM,
       }),
       this.prisma.tutor.count({ where }),
     ]);
 
-    return { data, total };
+    return { data: data.map(comContagem), total };
   }
 
-  async atualizar(id: string, data: AtualizarTutorData): Promise<Tutor> {
-    return this.prisma.tutor.update({
+  async atualizar(
+    id: string,
+    data: AtualizarTutorData,
+  ): Promise<TutorComContagem> {
+    const tutor = await this.prisma.tutor.update({
       where: { id },
       data,
+      include: INCLUDE_CONTAGEM,
     });
+    return comContagem(tutor);
   }
 
   async excluir(id: string, modificadoPorId: string): Promise<Tutor> {

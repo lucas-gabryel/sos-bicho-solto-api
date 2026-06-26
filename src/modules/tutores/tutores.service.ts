@@ -5,7 +5,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Tutor } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   paginar,
@@ -15,7 +14,10 @@ import {
 import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import type { IUsuariosRepository } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
 import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
-import type { ITutoresRepository } from './repositories/tutores.repository.interface';
+import type {
+  ITutoresRepository,
+  TutorComContagem,
+} from './repositories/tutores.repository.interface';
 import { TUTORES_REPOSITORY } from './repositories/tutores.repository.interface';
 import type { IAnimaisRepository } from '#src/modules/animais/repositories/animais.repository.interface';
 import { ANIMAIS_REPOSITORY } from '#src/modules/animais/repositories/animais.repository.interface';
@@ -149,7 +151,7 @@ export class TutoresService {
     );
   }
 
-  private async buscarAtivoOuFalhar(id: string): Promise<Tutor> {
+  private async buscarAtivoOuFalhar(id: string): Promise<TutorComContagem> {
     const tutor = await this.tutoresRepository.buscarPorId(id);
     if (!tutor || !tutor.ativo) {
       throw new NotFoundException('Tutor não encontrado.');
