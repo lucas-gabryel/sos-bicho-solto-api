@@ -73,6 +73,7 @@ export class TutoresService {
       skip: filtros.skip,
       take: filtros.take,
       busca: filtros.busca,
+      situacao: filtros.situacao,
     });
 
     return paginar(

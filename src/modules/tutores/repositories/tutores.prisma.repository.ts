@@ -8,6 +8,7 @@ import {
   ITutoresRepository,
   TutorComContagem,
 } from './tutores.repository.interface';
+import { filtroSituacao } from './filtro-situacao';
 
 // Conta apenas os animais ativos vinculados ao tutor (mesmo critério usado
 // na listagem de animais do tutor em GET /tutores/:id/animais).
@@ -57,6 +58,7 @@ export class TutoresPrismaRepository implements ITutoresRepository {
   async listar(params: ListarTutoresParams) {
     const where: Prisma.TutorWhereInput = {
       ativo: true,
+      ...filtroSituacao(params.situacao),
     };
 
     if (params.busca) {
