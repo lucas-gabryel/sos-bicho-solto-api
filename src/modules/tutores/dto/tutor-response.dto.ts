@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Tutor } from '@prisma/client';
+import {
+  SituacaoAcolhedor,
+  calcularSituacao,
+} from '../enums/situacao-acolhedor.enum';
 
 export class TutorResponseDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -38,10 +42,19 @@ export class TutorResponseDto {
   })
   readonly totalAnimaisAdotados!: number;
 
+  @ApiProperty({
+    enum: SituacaoAcolhedor,
+    example: SituacaoAcolhedor.TUTOR,
+    description:
+      'ADOTANTE quando não há animais ativos vinculados; TUTOR caso contrário.',
+  })
+  readonly situacao!: SituacaoAcolhedor;
+
   static fromEntity(
     tutor: Tutor & { totalAnimaisAdotados?: number },
   ): TutorResponseDto {
     const dto = new TutorResponseDto();
+    const totalAnimaisAdotados = tutor.totalAnimaisAdotados ?? 0;
     Object.assign(dto, {
       id: tutor.id,
       codigo: tutor.codigo,
@@ -53,7 +66,8 @@ export class TutorResponseDto {
       dataNascimento: tutor.dataNascimento,
       criadoEm: tutor.criadoEm,
       modificadoEm: tutor.modificadoEm,
-      totalAnimaisAdotados: tutor.totalAnimaisAdotados ?? 0,
+      totalAnimaisAdotados,
+      situacao: calcularSituacao(totalAnimaisAdotados),
     });
     return dto;
   }

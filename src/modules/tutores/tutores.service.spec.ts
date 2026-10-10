@@ -195,6 +195,28 @@ describe('TutoresService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.data[0].totalAnimaisAdotados).toBe(3);
     });
+
+    it('deve derivar situacao TUTOR quando possui animais adotados', async () => {
+      mockTutoresRepository.listar.mockResolvedValue({
+        data: [{ ...mockTutor, totalAnimaisAdotados: 3 }],
+        total: 1,
+      });
+
+      const result = await service.listar(new FiltrarTutoresDto());
+
+      expect(result.data[0].situacao).toBe('TUTOR');
+    });
+
+    it('deve derivar situacao ADOTANTE quando não possui animais adotados', async () => {
+      mockTutoresRepository.listar.mockResolvedValue({
+        data: [{ ...mockTutor, totalAnimaisAdotados: 0 }],
+        total: 1,
+      });
+
+      const result = await service.listar(new FiltrarTutoresDto());
+
+      expect(result.data[0].situacao).toBe('ADOTANTE');
+    });
   });
 
   describe('atualizar', () => {
