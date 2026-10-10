@@ -8,12 +8,12 @@ import {
   ITutoresRepository,
   TutorComContagem,
 } from './tutores.repository.interface';
-import { filtroSituacao } from './filtro-situacao';
+import { ANIMAIS_VINCULADOS_WHERE, filtroSituacao } from './filtro-situacao';
 
 // Conta apenas os animais ativos vinculados ao tutor (mesmo critério usado
-// na listagem de animais do tutor em GET /tutores/:id/animais).
+// no filtro de situação e na listagem de animais em GET /tutores/:id/animais).
 const INCLUDE_CONTAGEM = {
-  _count: { select: { animais: { where: { ativo: true } } } },
+  _count: { select: { animais: { where: ANIMAIS_VINCULADOS_WHERE } } },
 } satisfies Prisma.TutorInclude;
 
 type TutorComCount = Tutor & { _count: { animais: number } };

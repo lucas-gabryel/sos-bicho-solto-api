@@ -1,5 +1,5 @@
 import { SituacaoAcolhedor } from '../enums/situacao-acolhedor.enum';
-import { filtroSituacao } from './filtro-situacao';
+import { ANIMAIS_VINCULADOS_WHERE, filtroSituacao } from './filtro-situacao';
 
 describe('filtroSituacao', () => {
   it('retorna filtro vazio quando situacao não informada', () => {
@@ -27,5 +27,14 @@ describe('filtroSituacao', () => {
 
     expect(where.OR).toEqual([{ nome: { contains: 'ana' } }]);
     expect(where.animais).toEqual({ some: { ativo: true } });
+  });
+
+  it('TUTOR e ADOTANTE usam o mesmo critério de animal vinculado', () => {
+    expect(filtroSituacao(SituacaoAcolhedor.TUTOR)).toEqual({
+      animais: { some: ANIMAIS_VINCULADOS_WHERE },
+    });
+    expect(filtroSituacao(SituacaoAcolhedor.ADOTANTE)).toEqual({
+      animais: { none: ANIMAIS_VINCULADOS_WHERE },
+    });
   });
 });
