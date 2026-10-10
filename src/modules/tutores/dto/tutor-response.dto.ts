@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Tutor } from '@prisma/client';
+import { TutorComContagem } from '../repositories/tutores.repository.interface';
 import {
   SituacaoAcolhedor,
   calcularSituacao,
@@ -50,11 +50,9 @@ export class TutorResponseDto {
   })
   readonly situacao!: SituacaoAcolhedor;
 
-  static fromEntity(
-    tutor: Tutor & { totalAnimaisAdotados?: number },
-  ): TutorResponseDto {
+  static fromEntity(tutor: TutorComContagem): TutorResponseDto {
     const dto = new TutorResponseDto();
-    const totalAnimaisAdotados = tutor.totalAnimaisAdotados ?? 0;
+    const { totalAnimaisAdotados } = tutor;
     Object.assign(dto, {
       id: tutor.id,
       codigo: tutor.codigo,
