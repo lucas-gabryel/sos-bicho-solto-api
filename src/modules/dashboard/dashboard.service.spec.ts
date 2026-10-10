@@ -26,21 +26,19 @@ describe('DashboardService', () => {
   });
 
   it('retorna as métricas agregadas do dashboard', async () => {
-    repository.obterResumo.mockResolvedValue({
+    const resumo = {
       totalAnimais: 5,
       emAcolhimento: 3,
       adotados: 2,
-      tutores: 12,
-    });
+      acolhedores: 12,
+      tutores: 2,
+      adotantes: 10,
+    };
+    repository.obterResumo.mockResolvedValue(resumo);
 
     const result = await service.obterResumo();
 
     expect(repository.obterResumo).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      totalAnimais: 5,
-      emAcolhimento: 3,
-      adotados: 2,
-      tutores: 12,
-    });
+    expect(result).toEqual(resumo);
   });
 });
