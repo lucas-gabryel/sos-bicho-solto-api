@@ -1,4 +1,5 @@
 import { Tutor } from '@prisma/client';
+import { SituacaoAcolhedor } from '../enums/situacao-acolhedor.enum';
 
 export type TutorComContagem = Tutor & { totalAnimaisAdotados: number };
 
@@ -28,6 +29,7 @@ export interface ListarTutoresParams {
   skip: number;
   take: number;
   busca?: string;
+  situacao?: SituacaoAcolhedor;
 }
 
 export interface ITutoresRepository {

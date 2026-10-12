@@ -11,6 +11,7 @@ import { ANIMAIS_REPOSITORY } from '#src/modules/animais/repositories/animais.re
 import { FiltrarTutoresDto } from './dto/filtrar-tutores.dto';
 import { PaginacaoDto } from '#src/common/dto/paginacao.dto';
 import * as bcrypt from 'bcrypt';
+import { SituacaoAcolhedor } from './enums/situacao-acolhedor.enum';
 
 jest.mock('bcrypt');
 
@@ -191,9 +192,51 @@ describe('TutoresService', () => {
         skip: 0,
         take: 10,
         busca: undefined,
+        situacao: undefined,
       });
       expect(result.data).toHaveLength(1);
       expect(result.data[0].totalAnimaisAdotados).toBe(3);
+    });
+
+    it('deve derivar situacao TUTOR quando possui animais adotados', async () => {
+      mockTutoresRepository.listar.mockResolvedValue({
+        data: [{ ...mockTutor, totalAnimaisAdotados: 3 }],
+        total: 1,
+      });
+
+      const result = await service.listar(new FiltrarTutoresDto());
+
+      expect(result.data[0].situacao).toBe('TUTOR');
+    });
+
+    it('deve derivar situacao ADOTANTE quando não possui animais adotados', async () => {
+      mockTutoresRepository.listar.mockResolvedValue({
+        data: [{ ...mockTutor, totalAnimaisAdotados: 0 }],
+        total: 1,
+      });
+
+      const result = await service.listar(new FiltrarTutoresDto());
+
+      expect(result.data[0].situacao).toBe('ADOTANTE');
+    });
+
+    it('deve repassar o filtro de situacao ao repositório', async () => {
+      mockTutoresRepository.listar.mockResolvedValue({ data: [], total: 0 });
+
+      const filtros = new FiltrarTutoresDto();
+      filtros.page = 1;
+      filtros.limit = 10;
+      filtros.busca = 'ana';
+      filtros.situacao = SituacaoAcolhedor.ADOTANTE;
+
+      await service.listar(filtros);
+
+      expect(mockTutoresRepository.listar).toHaveBeenCalledWith({
+        skip: 0,
+        take: 10,
+        busca: 'ana',
+        situacao: SituacaoAcolhedor.ADOTANTE,
+      });
     });
   });
 
