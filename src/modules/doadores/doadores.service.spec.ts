@@ -133,6 +133,50 @@ describe('DoadoresService', () => {
       expect(result.cpfCnpj).toBe('39053344705');
     });
 
+    it('deve criar um doador utilizando o alias "nome" enviado pelo frontend', async () => {
+      const dto = {
+        nome: 'João Kinitos',
+        cpfCnpj: '58.099.647/0001-00',
+        email: 'kinitos@gmail.com',
+        telefone: '(99) 99999-9999',
+        endereco: 'Rua, 8, bairro, cidade',
+      };
+
+      mockDoadoresRepository.buscarPorCpfCnpj.mockResolvedValue(null);
+      mockDoadoresRepository.criar.mockResolvedValue({
+        ...mockDoador,
+        nomeRazaoSocial: 'João Kinitos',
+        cpfCnpj: '58099647000100',
+      });
+
+      const result = await service.criar(dto, usuarioAdmin);
+
+      expect(mockDoadoresRepository.criar).toHaveBeenCalledWith({
+        nomeRazaoSocial: 'João Kinitos',
+        cpfCnpj: '58099647000100',
+        email: 'kinitos@gmail.com',
+        telefone: '(99) 99999-9999',
+        endereco: 'Rua, 8, bairro, cidade',
+        criadoPorId: usuarioAdmin.sub,
+        modificadoPorId: usuarioAdmin.sub,
+      });
+      expect(result.nomeRazaoSocial).toBe('João Kinitos');
+      expect(result.nome).toBe('João Kinitos');
+    });
+
+    it('deve lançar BadRequestException se nem nome nem nomeRazaoSocial forem informados', async () => {
+      const dto = {
+        cpfCnpj: '58.099.647/0001-00',
+        email: 'kinitos@gmail.com',
+        telefone: '(99) 99999-9999',
+        endereco: 'Rua, 8, bairro, cidade',
+      } as any;
+
+      await expect(service.criar(dto, usuarioAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it('deve lançar BadRequestException se o CPF ou CNPJ for inválido', async () => {
       const dto = {
         nomeRazaoSocial: 'Doador Inválido',

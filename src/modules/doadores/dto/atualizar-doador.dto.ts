@@ -9,12 +9,50 @@ import {
 
 export class AtualizarDoadorDto {
   @ApiPropertyOptional({
+    example: 'João Kinitos',
+    description: 'Nome completo ou Razão Social do doador (alias)',
+  })
+  @IsString()
+  @IsOptional()
+  readonly nome?: string;
+
+  @ApiPropertyOptional({
     example: 'Pet Shop Amigo Fiel LTDA',
     description: 'Nome completo ou Razão Social do doador',
   })
   @IsString()
   @IsOptional()
   readonly nomeRazaoSocial?: string;
+
+  @ApiPropertyOptional({
+    example: '11.222.333/0001-81',
+    description: 'CPF ou CNPJ do doador (alias)',
+  })
+  @IsString()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && validarCpfCnpj(value)) {
+      return normalizarCpfCnpj(value);
+    }
+    return value as unknown;
+  })
+  @IsCpfCnpj({ message: 'CPF ou CNPJ inválido.' })
+  readonly cpf?: string;
+
+  @ApiPropertyOptional({
+    example: '11.222.333/0001-81',
+    description: 'CPF ou CNPJ do doador (alias)',
+  })
+  @IsString()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && validarCpfCnpj(value)) {
+      return normalizarCpfCnpj(value);
+    }
+    return value as unknown;
+  })
+  @IsCpfCnpj({ message: 'CPF ou CNPJ inválido.' })
+  readonly cnpj?: string;
 
   @ApiPropertyOptional({
     example: '11.222.333/0001-81',

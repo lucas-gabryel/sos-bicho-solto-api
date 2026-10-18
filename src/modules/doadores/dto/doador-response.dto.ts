@@ -8,8 +8,26 @@ export class DoadorResponseDto {
   @ApiProperty({ example: 'Pet Shop Amigo Fiel LTDA' })
   readonly nomeRazaoSocial!: string;
 
+  @ApiProperty({
+    example: 'Pet Shop Amigo Fiel LTDA',
+    description: 'Alias de nomeRazaoSocial',
+  })
+  readonly nome!: string;
+
   @ApiProperty({ example: '11222333000181' })
   readonly cpfCnpj!: string;
+
+  @ApiProperty({
+    example: '11222333000181',
+    description: 'Alias de cpfCnpj',
+  })
+  readonly cpf!: string;
+
+  @ApiProperty({
+    example: '11222333000181',
+    description: 'Alias de cpfCnpj',
+  })
+  readonly cnpj!: string;
 
   @ApiProperty({ example: 'contato@amigofiel.com.br' })
   readonly email!: string;
@@ -31,7 +49,10 @@ export class DoadorResponseDto {
     Object.assign(dto, {
       id: doador.id,
       nomeRazaoSocial: doador.nomeRazaoSocial,
+      nome: doador.nomeRazaoSocial,
       cpfCnpj: doador.cpfCnpj,
+      cpf: doador.cpfCnpj,
+      cnpj: doador.cpfCnpj,
       email: doador.email,
       telefone: doador.telefone,
       endereco: doador.endereco,

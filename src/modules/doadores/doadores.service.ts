@@ -36,15 +36,23 @@ export class DoadoresService {
     dto: CriarDoadorDto,
     usuario: JwtPayload,
   ): Promise<DoadorResponseDto> {
-    if (!validarCpfCnpj(dto.cpfCnpj)) {
+    const nomeFinal = (dto.nomeRazaoSocial || dto.nome)?.trim();
+    if (!nomeFinal) {
+      throw new BadRequestException(
+        'O nome ou razão social deve ser informado.',
+      );
+    }
+
+    const documento = dto.cpfCnpj || dto.cpf || dto.cnpj;
+    if (!documento || !validarCpfCnpj(documento)) {
       throw new BadRequestException('CPF ou CNPJ inválido.');
     }
 
-    const cpfCnpjNormalizado = normalizarCpfCnpj(dto.cpfCnpj);
+    const cpfCnpjNormalizado = normalizarCpfCnpj(documento);
     await this.garantirCpfCnpjDisponivel(cpfCnpjNormalizado);
 
     const doador = await this.doadoresRepository.criar({
-      nomeRazaoSocial: dto.nomeRazaoSocial,
+      nomeRazaoSocial: nomeFinal,
       cpfCnpj: cpfCnpjNormalizado,
       email: dto.email,
       telefone: dto.telefone,
@@ -84,20 +92,23 @@ export class DoadoresService {
   ): Promise<DoadorResponseDto> {
     const doador = await this.buscarAtivoOuFalhar(id);
 
+    const nomeFinal = (dto.nomeRazaoSocial ?? dto.nome)?.trim();
+
     let cpfCnpjNormalizado: string | undefined = undefined;
-    if (dto.cpfCnpj !== undefined) {
-      if (!validarCpfCnpj(dto.cpfCnpj)) {
+    const documento = dto.cpfCnpj ?? dto.cpf ?? dto.cnpj;
+    if (documento !== undefined) {
+      if (!validarCpfCnpj(documento)) {
         throw new BadRequestException('CPF ou CNPJ inválido.');
       }
 
-      cpfCnpjNormalizado = normalizarCpfCnpj(dto.cpfCnpj);
+      cpfCnpjNormalizado = normalizarCpfCnpj(documento);
       if (cpfCnpjNormalizado !== normalizarCpfCnpj(doador.cpfCnpj)) {
         await this.garantirCpfCnpjDisponivel(cpfCnpjNormalizado);
       }
     }
 
     const atualizado = await this.doadoresRepository.atualizar(id, {
-      nomeRazaoSocial: dto.nomeRazaoSocial,
+      nomeRazaoSocial: nomeFinal,
       cpfCnpj: cpfCnpjNormalizado,
       email: dto.email,
       telefone: dto.telefone,

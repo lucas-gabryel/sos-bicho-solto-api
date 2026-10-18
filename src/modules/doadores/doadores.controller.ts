@@ -67,7 +67,7 @@ export class DoadoresController {
   }
 
   @Patch(':id')
-  @Perfis(Perfil.ADMIN, Perfil.PROTETOR)
+  @Perfis(Perfil.ADMIN)
   @ApiResponse({
     status: 200,
     description: 'Doador atualizado com sucesso',

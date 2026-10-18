@@ -1,6 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 import {
   IsCpfCnpj,
   normalizarCpfCnpj,
@@ -8,20 +14,60 @@ import {
 } from '../validators/cpf-cnpj.validator';
 
 export class CriarDoadorDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
+    example: 'João Kinitos',
+    description: 'Nome completo ou Razão Social do doador (alias)',
+  })
+  @IsString()
+  @IsOptional()
+  readonly nome?: string;
+
+  @ApiPropertyOptional({
     example: 'Pet Shop Amigo Fiel LTDA',
     description: 'Nome completo ou Razão Social do doador',
   })
-  @IsString()
-  @IsNotEmpty()
-  readonly nomeRazaoSocial!: string;
+  @ValidateIf((o: CriarDoadorDto) => !o.nome)
+  @IsString({ message: 'O nome ou razão social deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome ou razão social não pode ser vazio.' })
+  readonly nomeRazaoSocial?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    example: '11.222.333/0001-81',
+    description: 'CPF ou CNPJ do doador (alias)',
+  })
+  @IsString()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && validarCpfCnpj(value)) {
+      return normalizarCpfCnpj(value);
+    }
+    return value as unknown;
+  })
+  @IsCpfCnpj({ message: 'CPF ou CNPJ inválido.' })
+  readonly cpf?: string;
+
+  @ApiPropertyOptional({
+    example: '11.222.333/0001-81',
+    description: 'CPF ou CNPJ do doador (alias)',
+  })
+  @IsString()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && validarCpfCnpj(value)) {
+      return normalizarCpfCnpj(value);
+    }
+    return value as unknown;
+  })
+  @IsCpfCnpj({ message: 'CPF ou CNPJ inválido.' })
+  readonly cnpj?: string;
+
+  @ApiPropertyOptional({
     example: '11.222.333/0001-81',
     description: 'CPF ou CNPJ do doador (com ou sem formatação)',
   })
+  @ValidateIf((o: CriarDoadorDto) => !o.cpf && !o.cnpj)
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'O CPF ou CNPJ deve ser informado.' })
   @Transform(({ value }) => {
     if (typeof value === 'string' && validarCpfCnpj(value)) {
       return normalizarCpfCnpj(value);
