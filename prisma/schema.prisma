@@ -43,6 +43,22 @@ model Tutor {
   @@map("tutores")
 }
 
+model Doador {
+  id              String   @id @default(uuid())
+  nomeRazaoSocial String   @map("nome_razao_social")
+  cpfCnpj         String   @unique @map("cpf_cnpj")
+  email           String
+  telefone        String
+  endereco        String
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  criadoPorId     String?  @map("criado_por_id")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+  modificadoPorId String?  @map("modificado_por_id")
+
+  @@map("doadores")
+}
+
 model Animal {
   id              String        @id @default(uuid())
   numeroRegistro  String        @unique @map("numero_registro")
