@@ -71,8 +71,14 @@ export class DoacaoResponseDto {
     Object.assign(dto, {
       id: doacao.id,
       tipo: doacao.tipo,
-      valor: doacao.valor !== null && doacao.valor !== undefined ? Number(doacao.valor) : null,
-      quantidade: doacao.quantidade !== null && doacao.quantidade !== undefined ? Number(doacao.quantidade) : null,
+      valor:
+        doacao.valor !== null && doacao.valor !== undefined
+          ? Number(doacao.valor)
+          : null,
+      quantidade:
+        doacao.quantidade !== null && doacao.quantidade !== undefined
+          ? Number(doacao.quantidade)
+          : null,
       unidadeMedida: doacao.unidadeMedida ?? null,
       descricao: doacao.descricao ?? null,
       dataRecebimento: dataRecebimentoStr,

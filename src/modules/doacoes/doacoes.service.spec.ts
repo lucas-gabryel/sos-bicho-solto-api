@@ -5,7 +5,9 @@ import { DOADORES_REPOSITORY } from '#src/modules/doadores/repositories/doadores
 import { DoacoesService } from './doacoes.service';
 import { CriarDoacaoDto } from './dto/criar-doacao.dto';
 import { FiltrarDoacoesDto } from './dto/filtrar-doacoes.dto';
+import { RelatorioDoacoesFiltroDto } from './dto/relatorio-doacoes-filtro.dto';
 import { DOACOES_REPOSITORY } from './repositories/doacoes.repository.interface';
+import { RelatorioPdfService } from './services/relatorio-pdf.service';
 
 describe('DoacoesService', () => {
   let service: DoacoesService;
@@ -14,10 +16,15 @@ describe('DoacoesService', () => {
     criar: jest.fn(),
     buscarPorId: jest.fn(),
     listar: jest.fn(),
+    obterRelatorio: jest.fn(),
   };
 
   const mockDoadoresRepository = {
     buscarPorId: jest.fn(),
+  };
+
+  const mockRelatorioPdfService = {
+    gerarPdf: jest.fn(),
   };
 
   const usuarioLogado = {
@@ -52,7 +59,11 @@ describe('DoacoesService', () => {
     criadoEm: new Date(),
     modificadoEm: new Date(),
     doador: mockDoador,
-    registradoPor: { id: 'user-123', nome: 'Usuário Protetor', email: 'user@test.com' },
+    registradoPor: {
+      id: 'user-123',
+      nome: 'Usuário Protetor',
+      email: 'user@test.com',
+    },
   };
 
   beforeEach(async () => {
@@ -68,6 +79,10 @@ describe('DoacoesService', () => {
         {
           provide: DOADORES_REPOSITORY,
           useValue: mockDoadoresRepository,
+        },
+        {
+          provide: RelatorioPdfService,
+          useValue: mockRelatorioPdfService,
         },
       ],
     }).compile();
@@ -90,7 +105,9 @@ describe('DoacoesService', () => {
 
       const result = await service.criar(dto, usuarioLogado);
 
-      expect(mockDoadoresRepository.buscarPorId).toHaveBeenCalledWith('doador-123');
+      expect(mockDoadoresRepository.buscarPorId).toHaveBeenCalledWith(
+        'doador-123',
+      );
       expect(mockDoacoesRepository.criar).toHaveBeenCalledWith(
         expect.objectContaining({
           tipo: TipoDoacao.DINHEIRO,
@@ -140,7 +157,9 @@ describe('DoacoesService', () => {
         anonima: false,
       };
 
-      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(BadRequestException);
+      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('deve lançar NotFoundException se doador informado não existir ou estiver inativo', async () => {
@@ -154,7 +173,9 @@ describe('DoacoesService', () => {
         anonima: false,
       };
 
-      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(NotFoundException);
+      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('deve lançar BadRequestException se tipo for DINHEIRO e valor não for informado ou for inválido', async () => {
@@ -167,7 +188,9 @@ describe('DoacoesService', () => {
         anonima: false,
       };
 
-      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(BadRequestException);
+      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('deve lançar BadRequestException se tipo não for DINHEIRO e quantidade não for informada', async () => {
@@ -180,7 +203,9 @@ describe('DoacoesService', () => {
         anonima: false,
       };
 
-      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(BadRequestException);
+      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -215,7 +240,212 @@ describe('DoacoesService', () => {
     it('deve lançar NotFoundException quando doação não for encontrada', async () => {
       mockDoacoesRepository.buscarPorId.mockResolvedValue(null);
 
-      await expect(service.buscarPorId('doacao-404')).rejects.toThrow(NotFoundException);
+      await expect(service.buscarPorId('doacao-404')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('obterRelatorio', () => {
+    const mockRelatorioDados = {
+      totalDinheiro: 1500.5,
+      itensAgrupados: [
+        { tipo: TipoDoacao.RACAO, quantidadeTotal: 120, unidadeMedida: 'kg' },
+        {
+          tipo: TipoDoacao.MEDICAMENTO,
+          quantidadeTotal: 30,
+          unidadeMedida: 'unidades',
+        },
+      ],
+      totalRegistros: 2,
+      doacoes: [
+        mockDoacaoCriada,
+        {
+          ...mockDoacaoCriada,
+          id: 'doacao-racao-1',
+          tipo: TipoDoacao.RACAO,
+          valor: null,
+          quantidade: 120,
+          unidadeMedida: 'kg',
+        },
+      ],
+    };
+
+    it('deve consultar relatório sem filtros aplicados', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue(
+        mockRelatorioDados,
+      );
+
+      const filtro: RelatorioDoacoesFiltroDto = {};
+      const result = await service.obterRelatorio(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalledWith({
+        dataInicio: undefined,
+        dataFim: undefined,
+        tipo: undefined,
+      });
+      expect(result.resumo.totalDinheiro).toBe(1500.5);
+      expect(result.resumo.totalDinheiroFormatado).toContain('1.500,50');
+      expect(result.resumo.itensAgrupados).toHaveLength(2);
+      expect(result.resumo.totalRegistros).toBe(2);
+      expect(result.filtros.dataInicio).toBeNull();
+      expect(result.filtros.dataFim).toBeNull();
+      expect(result.filtros.tipo).toBeNull();
+      expect(result.doacoes).toHaveLength(2);
+    });
+
+    it('deve filtrar relatório por período completo', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue(
+        mockRelatorioDados,
+      );
+
+      const filtro: RelatorioDoacoesFiltroDto = {
+        dataInicio: '2026-10-01',
+        dataFim: '2026-10-31',
+      };
+      const result = await service.obterRelatorio(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalledWith({
+        dataInicio: '2026-10-01',
+        dataFim: '2026-10-31',
+        tipo: undefined,
+      });
+      expect(result.filtros.dataInicio).toBe('2026-10-01');
+      expect(result.filtros.dataFim).toBe('2026-10-31');
+    });
+
+    it('deve filtrar relatório somente por data inicial', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue(
+        mockRelatorioDados,
+      );
+
+      const filtro: RelatorioDoacoesFiltroDto = {
+        dataInicio: '2026-10-01',
+      };
+      await service.obterRelatorio(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalledWith({
+        dataInicio: '2026-10-01',
+        dataFim: undefined,
+        tipo: undefined,
+      });
+    });
+
+    it('deve filtrar relatório somente por data final', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue(
+        mockRelatorioDados,
+      );
+
+      const filtro: RelatorioDoacoesFiltroDto = {
+        dataFim: '2026-10-31',
+      };
+      await service.obterRelatorio(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalledWith({
+        dataInicio: undefined,
+        dataFim: '2026-10-31',
+        tipo: undefined,
+      });
+    });
+
+    it('deve filtrar relatório por tipo de doação', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue({
+        totalDinheiro: 1500.0,
+        itensAgrupados: [],
+        totalRegistros: 1,
+        doacoes: [mockDoacaoCriada],
+      });
+
+      const filtro: RelatorioDoacoesFiltroDto = {
+        tipo: TipoDoacao.DINHEIRO,
+      };
+      const result = await service.obterRelatorio(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalledWith({
+        dataInicio: undefined,
+        dataFim: undefined,
+        tipo: TipoDoacao.DINHEIRO,
+      });
+      expect(result.resumo.totalDinheiro).toBe(1500.0);
+      expect(result.resumo.itensAgrupados).toEqual([]);
+      expect(result.filtros.tipo).toBe(TipoDoacao.DINHEIRO);
+    });
+
+    it('deve combinar período e tipo de doação', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue(
+        mockRelatorioDados,
+      );
+
+      const filtro: RelatorioDoacoesFiltroDto = {
+        dataInicio: '2026-10-01',
+        dataFim: '2026-10-31',
+        tipo: TipoDoacao.RACAO,
+      };
+      await service.obterRelatorio(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalledWith({
+        dataInicio: '2026-10-01',
+        dataFim: '2026-10-31',
+        tipo: TipoDoacao.RACAO,
+      });
+    });
+
+    it('deve lançar BadRequestException se dataInicio for posterior a dataFim', async () => {
+      const filtro: RelatorioDoacoesFiltroDto = {
+        dataInicio: '2026-10-31',
+        dataFim: '2026-10-01',
+      };
+
+      await expect(service.obterRelatorio(filtro)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockDoacoesRepository.obterRelatorio).not.toHaveBeenCalled();
+    });
+
+    it('deve retornar valores zerados e vazios quando não houver registros no resultado', async () => {
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue({
+        totalDinheiro: 0,
+        itensAgrupados: [],
+        totalRegistros: 0,
+        doacoes: [],
+      });
+
+      const result = await service.obterRelatorio({});
+
+      expect(result.resumo.totalDinheiro).toBe(0);
+      expect(result.resumo.totalDinheiroFormatado).toContain('0,00');
+      expect(result.resumo.itensAgrupados).toHaveLength(0);
+      expect(result.resumo.totalRegistros).toBe(0);
+      expect(result.doacoes).toHaveLength(0);
+    });
+  });
+
+  describe('gerarRelatorioPdf', () => {
+    it('deve obter o relatório e repassar para o RelatorioPdfService gerar o documento PDF', async () => {
+      const mockRelatorioDados = {
+        totalDinheiro: 500,
+        itensAgrupados: [],
+        totalRegistros: 1,
+        doacoes: [mockDoacaoCriada],
+      };
+      mockDoacoesRepository.obterRelatorio.mockResolvedValue(
+        mockRelatorioDados,
+      );
+      const fakePdfBuffer = Buffer.from('%PDF-1.4 Fake PDF');
+      mockRelatorioPdfService.gerarPdf.mockResolvedValue(fakePdfBuffer);
+
+      const filtro: RelatorioDoacoesFiltroDto = { dataInicio: '2026-10-01' };
+      const buffer = await service.gerarRelatorioPdf(filtro);
+
+      expect(mockDoacoesRepository.obterRelatorio).toHaveBeenCalled();
+      const calls = mockRelatorioPdfService.gerarPdf.mock
+        .calls as unknown as Array<
+        [{ resumo: { totalDinheiro: number }; doacoes: unknown[] }]
+      >;
+      const chamadoCom = calls[0][0];
+      expect(chamadoCom.resumo.totalDinheiro).toBe(500);
+      expect(chamadoCom.doacoes).toHaveLength(1);
+      expect(buffer).toEqual(fakePdfBuffer);
     });
   });
 });

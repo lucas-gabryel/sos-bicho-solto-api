@@ -12,8 +12,14 @@ import { DOADORES_REPOSITORY } from '#src/modules/doadores/repositories/doadores
 import { CriarDoacaoDto } from './dto/criar-doacao.dto';
 import { DoacaoResponseDto } from './dto/doacao-response.dto';
 import { FiltrarDoacoesDto } from './dto/filtrar-doacoes.dto';
+import { RelatorioDoacoesFiltroDto } from './dto/relatorio-doacoes-filtro.dto';
+import {
+  LABELS_TIPO_DOACAO,
+  RelatorioDoacoesResponseDto,
+} from './dto/relatorio-doacoes-response.dto';
 import type { IDoacoesRepository } from './repositories/doacoes.repository.interface';
 import { DOACOES_REPOSITORY } from './repositories/doacoes.repository.interface';
+import { RelatorioPdfService } from './services/relatorio-pdf.service';
 
 @Injectable()
 export class DoacoesService {
@@ -22,6 +28,7 @@ export class DoacoesService {
     private readonly doacoesRepository: IDoacoesRepository,
     @Inject(DOADORES_REPOSITORY)
     private readonly doadoresRepository: IDoadoresRepository,
+    private readonly relatorioPdfService: RelatorioPdfService,
   ) {}
 
   async criar(
@@ -87,7 +94,9 @@ export class DoacoesService {
     return DoacaoResponseDto.fromEntity(doacao);
   }
 
-  async listar(query: FiltrarDoacoesDto): Promise<RespostaPaginada<DoacaoResponseDto>> {
+  async listar(
+    query: FiltrarDoacoesDto,
+  ): Promise<RespostaPaginada<DoacaoResponseDto>> {
     const { data, total } = await this.doacoesRepository.listar({
       skip: query.skip,
       take: query.take,
@@ -110,5 +119,54 @@ export class DoacoesService {
     }
 
     return DoacaoResponseDto.fromEntity(doacao);
+  }
+
+  async obterRelatorio(
+    filtros: RelatorioDoacoesFiltroDto,
+  ): Promise<RelatorioDoacoesResponseDto> {
+    if (filtros.dataInicio && filtros.dataFim) {
+      if (filtros.dataInicio > filtros.dataFim) {
+        throw new BadRequestException(
+          'A data inicial deve ser anterior ou igual à data final.',
+        );
+      }
+    }
+
+    const dados = await this.doacoesRepository.obterRelatorio({
+      dataInicio: filtros.dataInicio,
+      dataFim: filtros.dataFim,
+      tipo: filtros.tipo,
+    });
+
+    const totalDinheiroFormatado = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(dados.totalDinheiro);
+
+    return {
+      resumo: {
+        totalDinheiro: dados.totalDinheiro,
+        totalDinheiroFormatado,
+        itensAgrupados: dados.itensAgrupados.map((item) => ({
+          tipo: item.tipo,
+          tipoLabel: LABELS_TIPO_DOACAO[item.tipo] || item.tipo,
+          quantidadeTotal: item.quantidadeTotal,
+          unidadeMedida: item.unidadeMedida ?? null,
+        })),
+        totalRegistros: dados.totalRegistros,
+      },
+      filtros: {
+        dataInicio: filtros.dataInicio ?? null,
+        dataFim: filtros.dataFim ?? null,
+        tipo: filtros.tipo ?? null,
+      },
+      doacoes: dados.doacoes.map((item) => DoacaoResponseDto.fromEntity(item)),
+      geradoEm: new Date().toISOString(),
+    };
+  }
+
+  async gerarRelatorioPdf(filtros: RelatorioDoacoesFiltroDto): Promise<Buffer> {
+    const relatorio = await this.obterRelatorio(filtros);
+    return this.relatorioPdfService.gerarPdf(relatorio);
   }
 }

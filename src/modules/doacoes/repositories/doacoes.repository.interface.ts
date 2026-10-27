@@ -24,12 +24,32 @@ export interface ListarDoacoesParams {
   busca?: string;
 }
 
+export interface ObterRelatorioParams {
+  dataInicio?: string;
+  dataFim?: string;
+  tipo?: TipoDoacao;
+}
+
+export interface AgrupamentoItemDoacao {
+  tipo: TipoDoacao;
+  quantidadeTotal: number;
+  unidadeMedida: string | null;
+}
+
+export interface RelatorioDoacoesDados {
+  totalDinheiro: number;
+  itensAgrupados: AgrupamentoItemDoacao[];
+  totalRegistros: number;
+  doacoes: DoacaoComRelacoes[];
+}
+
 export interface IDoacoesRepository {
   criar(data: CriarDoacaoData): Promise<DoacaoComRelacoes>;
   buscarPorId(id: string): Promise<DoacaoComRelacoes | null>;
   listar(
     params: ListarDoacoesParams,
   ): Promise<{ data: DoacaoComRelacoes[]; total: number }>;
+  obterRelatorio(params: ObterRelatorioParams): Promise<RelatorioDoacoesDados>;
 }
 
 export const DOACOES_REPOSITORY = 'DOACOES_REPOSITORY';

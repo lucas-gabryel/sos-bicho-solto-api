@@ -34,7 +34,8 @@ export class CriarDoacaoDto {
 
   @ApiPropertyOptional({
     example: 15,
-    description: 'Quantidade de itens recebidos (obrigatório se tipo NÃO for DINHEIRO)',
+    description:
+      'Quantidade de itens recebidos (obrigatório se tipo NÃO for DINHEIRO)',
   })
   @ValidateIf((o: CriarDoacaoDto) => o.tipo !== TipoDoacao.DINHEIRO)
   @Type(() => Number)
@@ -44,7 +45,8 @@ export class CriarDoacaoDto {
 
   @ApiPropertyOptional({
     example: 'kg',
-    description: 'Unidade de medida da quantidade (ex: kg, unidades, caixas, pacotes)',
+    description:
+      'Unidade de medida da quantidade (ex: kg, unidades, caixas, pacotes)',
   })
   @IsOptional()
   @IsString()
@@ -62,12 +64,16 @@ export class CriarDoacaoDto {
     example: '2026-10-26',
     description: 'Data em que a doação foi recebida (YYYY-MM-DD)',
   })
-  @IsDateString({}, { message: 'A data de recebimento deve ser válida no formato YYYY-MM-DD' })
+  @IsDateString(
+    {},
+    { message: 'A data de recebimento deve ser válida no formato YYYY-MM-DD' },
+  )
   readonly dataRecebimento!: string;
 
   @ApiPropertyOptional({
     example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'ID do doador cadastrado (obrigatório se a doação não for anônima)',
+    description:
+      'ID do doador cadastrado (obrigatório se a doação não for anônima)',
   })
   @IsOptional()
   @IsUUID('4', { message: 'O ID do doador deve ser um UUID válido' })

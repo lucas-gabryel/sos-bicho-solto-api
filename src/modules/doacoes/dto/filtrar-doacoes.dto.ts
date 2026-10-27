@@ -20,7 +20,8 @@ export class FiltrarDoacoesDto extends PaginacaoDto {
   readonly doadorId?: string;
 
   @ApiPropertyOptional({
-    description: 'Busca textual por descrição, unidade ou nome/documento do doador',
+    description:
+      'Busca textual por descrição, unidade ou nome/documento do doador',
   })
   @IsOptional()
   @IsString()
