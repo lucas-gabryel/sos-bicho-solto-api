@@ -19,6 +19,7 @@ model Usuario {
   modificadoEm       DateTime @updatedAt @map("modificado_em")
   modificadoPorId    String?  @map("modificado_por_id")
   adocoesRegistradas Adocao[] @relation("AdocaoProtetor")
+  doacoesRegistradas Doacao[] @relation("DoacaoRegistrador")
 
   @@map("usuarios")
 }
@@ -55,6 +56,7 @@ model Doador {
   criadoPorId     String?  @map("criado_por_id")
   atualizadoEm    DateTime @updatedAt @map("atualizado_em")
   modificadoPorId String?  @map("modificado_por_id")
+  doacoes         Doacao[]
 
   @@map("doadores")
 }
@@ -151,4 +153,34 @@ enum PorteAnimal {
 enum StatusAnimal {
   ACOLHIMENTO
   ADOTADO
+}
+
+enum TipoDoacao {
+  DINHEIRO
+  RACAO
+  MEDICAMENTO
+  PRODUTO_LIMPEZA
+  OUTRO
+}
+
+model Doacao {
+  id              String      @id @default(uuid())
+  tipo            TipoDoacao
+  valor           Decimal?    @db.Decimal(10, 2)
+  quantidade      Decimal?    @db.Decimal(10, 2)
+  unidadeMedida   String?     @map("unidade_medida")
+  descricao       String?
+  dataRecebimento DateTime    @map("data_recebimento") @db.Date
+  doadorId        String?     @map("doador_id")
+  registradoPorId String?     @map("registrado_por_id")
+  ativo           Boolean     @default(true)
+  criadoEm        DateTime    @default(now()) @map("criado_em")
+  modificadoEm    DateTime    @updatedAt @map("modificado_em")
+  doador          Doador?     @relation(fields: [doadorId], references: [id])
+  registradoPor   Usuario?    @relation("DoacaoRegistrador", fields: [registradoPorId], references: [id])
+
+  @@index([tipo])
+  @@index([doadorId])
+  @@index([dataRecebimento])
+  @@map("doacoes")
 }
