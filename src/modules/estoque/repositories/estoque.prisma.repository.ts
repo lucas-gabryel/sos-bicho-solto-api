@@ -151,3 +151,4 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
     return Math.max(0, saldo);
   }
 }
+

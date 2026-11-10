@@ -17,7 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { UsuarioAtual } from '#src/common/decorators/usuario-atual.decorator';
 import { JwtAuthGuard } from '#src/common/guards/jwt-auth.guard';
-import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
+import type { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import { FiltrarMovimentacoesDto } from './dto/filtrar-movimentacoes.dto';
 import { MovimentacaoResponseDto } from './dto/movimentacao-response.dto';
 import { RegistrarMovimentacaoDto } from './dto/registrar-movimentacao.dto';
@@ -29,7 +29,7 @@ import { EstoqueService } from './estoque.service';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class EstoqueController {
-  constructor(private readonly estoqueService: EstoqueService) {}
+  constructor(private readonly estoqueService: EstoqueService) { }
 
   @Post('movimentacoes')
   @HttpCode(HttpStatus.CREATED)
@@ -88,3 +88,4 @@ export class EstoqueController {
     return this.estoqueService.buscarPorId(id);
   }
 }
+

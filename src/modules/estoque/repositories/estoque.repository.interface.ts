@@ -36,3 +36,4 @@ export interface IEstoqueRepository {
     unidadeMedida: string,
   ): Promise<number>;
 }
+

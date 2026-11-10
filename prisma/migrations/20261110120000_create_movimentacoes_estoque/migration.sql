@@ -37,3 +37,4 @@ ALTER TABLE "movimentacoes_estoque" ADD CONSTRAINT "movimentacoes_estoque_doacao
 
 -- AddForeignKey
 ALTER TABLE "movimentacoes_estoque" ADD CONSTRAINT "movimentacoes_estoque_registrado_por_id_fkey" FOREIGN KEY ("registrado_por_id") REFERENCES "usuarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+

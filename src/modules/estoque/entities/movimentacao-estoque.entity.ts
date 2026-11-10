@@ -16,3 +16,4 @@ export class MovimentacaoEstoque {
   criadoEm!: Date;
   modificadoEm!: Date;
 }
+

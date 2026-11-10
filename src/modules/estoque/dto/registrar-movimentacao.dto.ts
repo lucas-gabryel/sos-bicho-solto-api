@@ -85,3 +85,4 @@ export class RegistrarMovimentacaoDto {
   @IsOptional()
   doacaoId?: string;
 }
+

@@ -19,4 +19,4 @@ import { DOACOES_REPOSITORY } from './repositories/doacoes.repository.interface'
   ],
   exports: [DoacoesService, DOACOES_REPOSITORY],
 })
-export class DoacoesModule {}
+export class DoacoesModule { }

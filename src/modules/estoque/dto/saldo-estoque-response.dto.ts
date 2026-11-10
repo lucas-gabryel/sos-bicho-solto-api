@@ -47,3 +47,4 @@ export class ResumoEstoqueResponseDto {
   @ApiProperty()
   totalItensBaixos!: number;
 }
+

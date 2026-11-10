@@ -61,3 +61,4 @@ export class MovimentacaoResponseDto {
     return dto;
   }
 }
+

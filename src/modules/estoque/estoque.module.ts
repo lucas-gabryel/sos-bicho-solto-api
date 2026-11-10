@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '#src/database/database.module';
+import { PrismaModule } from '#src/database/prisma.module';
 import { EstoqueController } from './estoque.controller';
 import { EstoqueService } from './estoque.service';
 import { EstoquePrismaRepository } from './repositories/estoque.prisma.repository';
 import { ESTOQUE_REPOSITORY } from './repositories/estoque.repository.interface';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [PrismaModule],
   controllers: [EstoqueController],
   providers: [
     EstoqueService,
@@ -17,4 +17,5 @@ import { ESTOQUE_REPOSITORY } from './repositories/estoque.repository.interface'
   ],
   exports: [EstoqueService, ESTOQUE_REPOSITORY],
 })
-export class EstoqueModule {}
+export class EstoqueModule { }
+

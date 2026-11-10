@@ -27,3 +27,4 @@ export class FiltrarMovimentacoesDto extends PaginacaoDto {
   @IsOptional()
   busca?: string;
 }
+
