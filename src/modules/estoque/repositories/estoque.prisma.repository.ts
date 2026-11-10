@@ -7,6 +7,7 @@ import {
   IEstoqueRepository,
   ListarMovimentacoesFiltro,
 } from './estoque.repository.interface';
+import { calcularSaldoDeMovimentacoes } from '../utils/estoque.utils';
 
 @Injectable()
 export class EstoquePrismaRepository implements IEstoqueRepository {
@@ -22,8 +23,12 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
     },
   };
 
-  async criar(data: CriarMovimentacaoData): Promise<MovimentacaoEstoque> {
-    const criada = await this.prisma.movimentacaoEstoque.create({
+  async criar(
+    data: CriarMovimentacaoData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<MovimentacaoEstoque> {
+    const client = tx ?? this.prisma;
+    const criada = await client.movimentacaoEstoque.create({
       data: {
         tipo: data.tipo,
         tipoItem: data.tipoItem,
@@ -107,14 +112,32 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
   async obterTodasAtivas(): Promise<MovimentacaoEstoque[]> {
     const items = await this.prisma.movimentacaoEstoque.findMany({
       where: { ativo: true },
-      include: this.includeRelacoes,
-      orderBy: [{ dataMovimento: 'asc' }],
+      select: {
+        id: true,
+        tipo: true,
+        tipoItem: true,
+        descricaoItem: true,
+        quantidade: true,
+        unidadeMedida: true,
+        motivo: true,
+        dataMovimento: true,
+        doacaoId: true,
+        registradoPorId: true,
+        ativo: true,
+        criadoEm: true,
+        modificadoEm: true,
+      },
+      orderBy: [
+        { dataMovimento: 'asc' },
+        { criadoEm: 'asc' },
+        { id: 'asc' },
+      ],
     });
 
     return items.map((item) => ({
       ...item,
       quantidade: Number(item.quantidade),
-      registradoPorNome: item.registradoPor?.nome ?? null,
+      registradoPorNome: null,
     }));
   }
 
@@ -122,8 +145,10 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
     tipoItem: Prisma.MovimentacaoEstoqueWhereInput['tipoItem'],
     descricaoItem: string,
     unidadeMedida: string,
-  ): Promise<number> {
-    const movimentacoes = await this.prisma.movimentacaoEstoque.findMany({
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.Decimal> {
+    const client = tx ?? this.prisma;
+    const movimentacoes = await client.movimentacaoEstoque.findMany({
       where: {
         ativo: true,
         tipoItem,
@@ -134,21 +159,27 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
         tipo: true,
         quantidade: true,
       },
+      orderBy: [
+        { dataMovimento: 'asc' },
+        { criadoEm: 'asc' },
+        { id: 'asc' },
+      ],
     });
 
-    let saldo = 0;
-    for (const mov of movimentacoes) {
-      const qtd = Number(mov.quantidade);
-      if (mov.tipo === 'ENTRADA') {
-        saldo += qtd;
-      } else if (mov.tipo === 'SAIDA') {
-        saldo -= qtd;
-      } else if (mov.tipo === 'AJUSTE') {
-        saldo = qtd;
-      }
-    }
+    return calcularSaldoDeMovimentacoes(movimentacoes);
+  }
 
-    return Math.max(0, saldo);
+  async bloquearItemParaMovimentacao(
+    chaveItem: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${chaveItem}))`;
+  }
+
+  async executarTransacao<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(fn);
   }
 }
 

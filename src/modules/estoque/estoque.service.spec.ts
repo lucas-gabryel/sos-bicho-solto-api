@@ -14,6 +14,8 @@ describe('EstoqueService', () => {
     listar: jest.fn(),
     obterTodasAtivas: jest.fn(),
     calcularSaldoItem: jest.fn(),
+    bloquearItemParaMovimentacao: jest.fn().mockResolvedValue(undefined),
+    executarTransacao: jest.fn().mockImplementation((fn) => fn({})),
   };
 
   const usuarioLogado = {
@@ -78,8 +80,68 @@ describe('EstoqueService', () => {
           quantidade: 10,
           unidadeMedida: 'PCT',
         }),
+        expect.anything(),
       );
       expect(result.id).toBe('mov-1');
+    });
+
+    it('deve registrar ajuste com quantidade zero com sucesso', async () => {
+      mockEstoqueRepository.criar.mockResolvedValue({
+        ...mockMovimentacao,
+        id: 'mov-ajuste-zero',
+        tipo: TipoMovimentacaoEstoque.AJUSTE,
+        quantidade: 0,
+      });
+
+      const dto: RegistrarMovimentacaoDto = {
+        tipo: TipoMovimentacaoEstoque.AJUSTE,
+        tipoItem: TipoDoacao.RACAO,
+        descricaoItem: 'Ração Cães Adultos 15kg',
+        quantidade: 0,
+        unidadeMedida: 'PCT',
+        motivo: 'Ajuste de inventário para zerar',
+      };
+
+      const result = await service.registrarMovimentacao(dto, usuarioLogado);
+
+      expect(mockEstoqueRepository.criar).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tipo: TipoMovimentacaoEstoque.AJUSTE,
+          quantidade: 0,
+        }),
+        expect.anything(),
+      );
+      expect(result.id).toBe('mov-ajuste-zero');
+    });
+
+    it('deve rejeitar ajuste com quantidade negativa', async () => {
+      const dto: RegistrarMovimentacaoDto = {
+        tipo: TipoMovimentacaoEstoque.AJUSTE,
+        tipoItem: TipoDoacao.RACAO,
+        descricaoItem: 'Ração Cães Adultos 15kg',
+        quantidade: -1,
+        unidadeMedida: 'PCT',
+        motivo: 'Ajuste negativo',
+      };
+
+      await expect(
+        service.registrarMovimentacao(dto, usuarioLogado),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve rejeitar entrada com quantidade zero', async () => {
+      const dto: RegistrarMovimentacaoDto = {
+        tipo: TipoMovimentacaoEstoque.ENTRADA,
+        tipoItem: TipoDoacao.RACAO,
+        descricaoItem: 'Ração Cães Adultos 15kg',
+        quantidade: 0,
+        unidadeMedida: 'PCT',
+        motivo: 'Entrada zero',
+      };
+
+      await expect(
+        service.registrarMovimentacao(dto, usuarioLogado),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('deve rejeitar movimentação para tipo DINHEIRO', async () => {
@@ -201,6 +263,91 @@ describe('EstoqueService', () => {
       const itemVermifugo = resumo.itens.find((i) => i.descricaoItem === 'Vermífugo');
       expect(itemVermifugo?.saldoAtual).toBe(0);
       expect(itemVermifugo?.status).toBe('ZERADO');
+    });
+
+    it('deve calcular corretamente sequência com AJUSTE (ex: ENTRADA 10 -> AJUSTE 3 -> ENTRADA 5 = 8)', async () => {
+      mockEstoqueRepository.obterTodasAtivas.mockResolvedValue([
+        {
+          id: '1',
+          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipoItem: TipoDoacao.RACAO,
+          descricaoItem: 'Ração Especial',
+          quantidade: 10,
+          unidadeMedida: 'KG',
+          motivo: 'Entrada 10',
+          dataMovimento: new Date('2026-11-01'),
+          ativo: true,
+        },
+        {
+          id: '2',
+          tipo: TipoMovimentacaoEstoque.AJUSTE,
+          tipoItem: TipoDoacao.RACAO,
+          descricaoItem: 'Ração Especial',
+          quantidade: 3,
+          unidadeMedida: 'KG',
+          motivo: 'Ajuste inventário',
+          dataMovimento: new Date('2026-11-02'),
+          ativo: true,
+        },
+        {
+          id: '3',
+          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipoItem: TipoDoacao.RACAO,
+          descricaoItem: 'Ração Especial',
+          quantidade: 5,
+          unidadeMedida: 'KG',
+          motivo: 'Nova doação 5',
+          dataMovimento: new Date('2026-11-03'),
+          ativo: true,
+        },
+      ]);
+
+      const resumo = await service.obterResumoSaldos();
+      const item = resumo.itens.find((i) => i.descricaoItem === 'Ração Especial');
+      expect(item?.saldoAtual).toBe(8);
+    });
+
+    it('deve manter precisão decimal exata (0.70 + 0.10 - 0.80 = 0.00 ZERADO)', async () => {
+      mockEstoqueRepository.obterTodasAtivas.mockResolvedValue([
+        {
+          id: '1',
+          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipoItem: TipoDoacao.RACAO,
+          descricaoItem: 'Ração Fracionada',
+          quantidade: 0.7,
+          unidadeMedida: 'KG',
+          motivo: 'Entrada 0.70',
+          dataMovimento: new Date('2026-11-01'),
+          ativo: true,
+        },
+        {
+          id: '2',
+          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipoItem: TipoDoacao.RACAO,
+          descricaoItem: 'Ração Fracionada',
+          quantidade: 0.1,
+          unidadeMedida: 'KG',
+          motivo: 'Entrada 0.10',
+          dataMovimento: new Date('2026-11-02'),
+          ativo: true,
+        },
+        {
+          id: '3',
+          tipo: TipoMovimentacaoEstoque.SAIDA,
+          tipoItem: TipoDoacao.RACAO,
+          descricaoItem: 'Ração Fracionada',
+          quantidade: 0.8,
+          unidadeMedida: 'KG',
+          motivo: 'Saída 0.80',
+          dataMovimento: new Date('2026-11-03'),
+          ativo: true,
+        },
+      ]);
+
+      const resumo = await service.obterResumoSaldos();
+      const item = resumo.itens.find((i) => i.descricaoItem === 'Ração Fracionada');
+      expect(item?.saldoAtual).toBe(0);
+      expect(item?.status).toBe('ZERADO');
     });
   });
 

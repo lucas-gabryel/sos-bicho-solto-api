@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TipoDoacao, TipoMovimentacaoEstoque } from '@prisma/client';
+import { Prisma, TipoDoacao, TipoMovimentacaoEstoque } from '@prisma/client';
 import { paginar, RespostaPaginada } from '#src/common/dto/paginacao.dto';
 import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
+import { MovimentacaoEstoque } from './entities/movimentacao-estoque.entity';
 import { FiltrarMovimentacoesDto } from './dto/filtrar-movimentacoes.dto';
 import { MovimentacaoResponseDto } from './dto/movimentacao-response.dto';
 import { RegistrarMovimentacaoDto } from './dto/registrar-movimentacao.dto';
@@ -16,6 +17,11 @@ import {
 } from './dto/saldo-estoque-response.dto';
 import type { IEstoqueRepository } from './repositories/estoque.repository.interface';
 import { ESTOQUE_REPOSITORY } from './repositories/estoque.repository.interface';
+import {
+  calcularSaldoDeMovimentacoes,
+  gerarChaveItemEstoque,
+  normalizarItemEstoque,
+} from './utils/estoque.utils';
 
 @Injectable()
 export class EstoqueService {
@@ -27,6 +33,7 @@ export class EstoqueService {
   async registrarMovimentacao(
     dto: RegistrarMovimentacaoDto,
     usuario?: JwtPayload,
+    txContext?: Prisma.TransactionClient,
   ): Promise<MovimentacaoResponseDto> {
     if (dto.tipoItem === TipoDoacao.DINHEIRO) {
       throw new BadRequestException(
@@ -34,40 +41,80 @@ export class EstoqueService {
       );
     }
 
-    if (dto.quantidade <= 0) {
+    if (dto.tipo === TipoMovimentacaoEstoque.AJUSTE) {
+      if (dto.quantidade < 0) {
+        throw new BadRequestException(
+          'A quantidade para ajuste deve ser maior ou igual a zero.',
+        );
+      }
+    } else if (dto.quantidade <= 0) {
       throw new BadRequestException('A quantidade deve ser maior que zero.');
     }
 
-    const descricaoItemFormatada = dto.descricaoItem.trim();
-    const unidadeMedidaFormatada = dto.unidadeMedida.trim().toUpperCase();
+    const {
+      descricaoItem: descricaoItemFormatada,
+      unidadeMedida: unidadeMedidaFormatada,
+    } = normalizarItemEstoque(dto.descricaoItem, dto.unidadeMedida);
 
-    // Se for SAÍDA, valida se há saldo suficiente para evitar estoque negativo
-    if (dto.tipo === TipoMovimentacaoEstoque.SAIDA) {
-      const saldoAtual = await this.estoqueRepository.calcularSaldoItem(
-        dto.tipoItem,
-        descricaoItemFormatada,
-        unidadeMedidaFormatada,
+    const executarOperacao = async (tx: Prisma.TransactionClient) => {
+      // Para operações de SAIDA ou AJUSTE, adquire lock exclusivo do item
+      if (
+        dto.tipo === TipoMovimentacaoEstoque.SAIDA ||
+        dto.tipo === TipoMovimentacaoEstoque.AJUSTE
+      ) {
+        const chave = gerarChaveItemEstoque(
+          dto.tipoItem,
+          descricaoItemFormatada,
+          unidadeMedidaFormatada,
+        );
+        await this.estoqueRepository.bloquearItemParaMovimentacao(chave, tx);
+      }
+
+      // Se for SAÍDA, valida se há saldo suficiente para evitar estoque negativo
+      if (dto.tipo === TipoMovimentacaoEstoque.SAIDA) {
+        const saldoRetornado = await this.estoqueRepository.calcularSaldoItem(
+          dto.tipoItem,
+          descricaoItemFormatada,
+          unidadeMedidaFormatada,
+          tx,
+        );
+
+        const saldoAtual =
+          saldoRetornado instanceof Prisma.Decimal
+            ? saldoRetornado
+            : new Prisma.Decimal(String(saldoRetornado));
+
+        const quantidadeSolicitada = new Prisma.Decimal(dto.quantidade.toString());
+
+        if (quantidadeSolicitada.greaterThan(saldoAtual)) {
+          throw new BadRequestException(
+            `Saldo insuficiente para baixa no estoque. Saldo disponível: ${saldoAtual.toNumber()} ${unidadeMedidaFormatada}. Quantidade solicitada: ${dto.quantidade}.`,
+          );
+        }
+      }
+
+      const movimentacao = await this.estoqueRepository.criar(
+        {
+          tipo: dto.tipo,
+          tipoItem: dto.tipoItem,
+          descricaoItem: descricaoItemFormatada,
+          quantidade: dto.quantidade,
+          unidadeMedida: unidadeMedidaFormatada,
+          motivo: dto.motivo.trim(),
+          doacaoId: dto.doacaoId,
+          registradoPorId: usuario?.sub,
+        },
+        tx,
       );
 
-      if (dto.quantidade > saldoAtual) {
-        throw new BadRequestException(
-          `Saldo insuficiente para baixa no estoque. Saldo disponível: ${saldoAtual} ${unidadeMedidaFormatada}. Quantidade solicitada: ${dto.quantidade}.`,
-        );
-      }
+      return MovimentacaoResponseDto.fromEntity(movimentacao);
+    };
+
+    if (txContext) {
+      return executarOperacao(txContext);
     }
 
-    const movimentacao = await this.estoqueRepository.criar({
-      tipo: dto.tipo,
-      tipoItem: dto.tipoItem,
-      descricaoItem: descricaoItemFormatada,
-      quantidade: dto.quantidade,
-      unidadeMedida: unidadeMedidaFormatada,
-      motivo: dto.motivo.trim(),
-      doacaoId: dto.doacaoId,
-      registradoPorId: usuario?.sub,
-    });
-
-    return MovimentacaoResponseDto.fromEntity(movimentacao);
+    return this.estoqueRepository.executarTransacao(executarOperacao);
   }
 
   async listarMovimentacoes(
@@ -100,24 +147,27 @@ export class EstoqueService {
   async obterResumoSaldos(): Promise<ResumoEstoqueResponseDto> {
     const todasMovimentacoes = await this.estoqueRepository.obterTodasAtivas();
 
-    // Agrupar por chave: tipoItem + "___" + descricaoItem (normalizada) + "___" + unidadeMedida (normalizada)
+    // Agrupar por chave única normalizada
     const agrupamento = new Map<
       string,
       {
         tipoItem: TipoDoacao;
         descricaoItem: string;
         unidadeMedida: string;
-        totalEntradas: number;
-        totalSaidas: number;
-        saldoAtual: number;
+        movimentacoes: MovimentacaoEstoque[];
+        totalEntradas: Prisma.Decimal;
+        totalSaidas: Prisma.Decimal;
+        saldoAtual: Prisma.Decimal;
         ultimaMovimentacaoEm: Date;
       }
     >();
 
     for (const mov of todasMovimentacoes) {
-      const descNorm = mov.descricaoItem.trim();
-      const unitNorm = mov.unidadeMedida.trim().toUpperCase();
-      const key = `${mov.tipoItem}:::${descNorm.toLowerCase()}:::${unitNorm.toLowerCase()}`;
+      const {
+        descricaoItem: descNorm,
+        unidadeMedida: unitNorm,
+      } = normalizarItemEstoque(mov.descricaoItem, mov.unidadeMedida);
+      const key = gerarChaveItemEstoque(mov.tipoItem, descNorm, unitNorm);
 
       let registro = agrupamento.get(key);
       if (!registro) {
@@ -125,23 +175,22 @@ export class EstoqueService {
           tipoItem: mov.tipoItem,
           descricaoItem: descNorm,
           unidadeMedida: unitNorm,
-          totalEntradas: 0,
-          totalSaidas: 0,
-          saldoAtual: 0,
+          movimentacoes: [],
+          totalEntradas: new Prisma.Decimal(0),
+          totalSaidas: new Prisma.Decimal(0),
+          saldoAtual: new Prisma.Decimal(0),
           ultimaMovimentacaoEm: mov.dataMovimento,
         };
         agrupamento.set(key, registro);
       }
 
-      const qtd = Number(mov.quantidade);
+      registro.movimentacoes.push(mov);
+
+      const qtd = new Prisma.Decimal(mov.quantidade.toString());
       if (mov.tipo === TipoMovimentacaoEstoque.ENTRADA) {
-        registro.totalEntradas += qtd;
-        registro.saldoAtual += qtd;
+        registro.totalEntradas = registro.totalEntradas.plus(qtd);
       } else if (mov.tipo === TipoMovimentacaoEstoque.SAIDA) {
-        registro.totalSaidas += qtd;
-        registro.saldoAtual -= qtd;
-      } else if (mov.tipo === TipoMovimentacaoEstoque.AJUSTE) {
-        registro.saldoAtual = qtd;
+        registro.totalSaidas = registro.totalSaidas.plus(qtd);
       }
 
       if (new Date(mov.dataMovimento) > new Date(registro.ultimaMovimentacaoEm)) {
@@ -151,15 +200,19 @@ export class EstoqueService {
 
     const itens: ItemSaldoEstoqueDto[] = Array.from(agrupamento.entries()).map(
       ([key, data]) => {
-        const saldoFinal = Math.max(0, data.saldoAtual);
+        // Usa a mesma função centralizada de cálculo de saldo
+        const saldoCalculado = calcularSaldoDeMovimentacoes(data.movimentacoes);
+        const saldoFinal = saldoCalculado.isNegative()
+          ? new Prisma.Decimal(0)
+          : saldoCalculado;
+
         let status: 'ADEQUADO' | 'BAIXO' | 'ZERADO' = 'ADEQUADO';
 
-        if (saldoFinal === 0) {
+        if (saldoFinal.isZero()) {
           status = 'ZERADO';
         } else if (
-          // Regra de atenção: menos de 5 unidades ou kg
-          saldoFinal <= 5 ||
-          saldoFinal < data.totalEntradas * 0.15
+          saldoFinal.lessThanOrEqualTo(5) ||
+          saldoFinal.lessThan(data.totalEntradas.mul(0.15))
         ) {
           status = 'BAIXO';
         }
@@ -169,9 +222,9 @@ export class EstoqueService {
           tipoItem: data.tipoItem,
           descricaoItem: data.descricaoItem,
           unidadeMedida: data.unidadeMedida,
-          totalEntradas: Number(data.totalEntradas.toFixed(2)),
-          totalSaidas: Number(data.totalSaidas.toFixed(2)),
-          saldoAtual: Number(saldoFinal.toFixed(2)),
+          totalEntradas: data.totalEntradas.toNumber(),
+          totalSaidas: data.totalSaidas.toNumber(),
+          saldoAtual: saldoFinal.toNumber(),
           status,
           ultimaMovimentacaoEm: data.ultimaMovimentacaoEm,
         };

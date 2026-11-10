@@ -1,4 +1,4 @@
-import { TipoDoacao, TipoMovimentacaoEstoque } from '@prisma/client';
+import { Prisma, TipoDoacao, TipoMovimentacaoEstoque } from '@prisma/client';
 import { MovimentacaoEstoque } from '../entities/movimentacao-estoque.entity';
 
 export const ESTOQUE_REPOSITORY = 'ESTOQUE_REPOSITORY';
@@ -24,7 +24,10 @@ export interface ListarMovimentacoesFiltro {
 }
 
 export interface IEstoqueRepository {
-  criar(data: CriarMovimentacaoData): Promise<MovimentacaoEstoque>;
+  criar(
+    data: CriarMovimentacaoData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<MovimentacaoEstoque>;
   listar(
     filtro: ListarMovimentacoesFiltro,
   ): Promise<{ data: MovimentacaoEstoque[]; total: number }>;
@@ -34,6 +37,14 @@ export interface IEstoqueRepository {
     tipoItem: TipoDoacao,
     descricaoItem: string,
     unidadeMedida: string,
-  ): Promise<number>;
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.Decimal>;
+  bloquearItemParaMovimentacao(
+    chaveItem: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void>;
+  executarTransacao<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T>;
 }
 

@@ -23,8 +23,12 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
     },
   };
 
-  async criar(data: CriarDoacaoData): Promise<DoacaoComRelacoes> {
-    return this.prisma.doacao.create({
+  async criar(
+    data: CriarDoacaoData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DoacaoComRelacoes> {
+    const client = tx ?? this.prisma;
+    return client.doacao.create({
       data: {
         tipo: data.tipo,
         valor: data.valor !== undefined && data.valor !== null ? new Prisma.Decimal(data.valor.toString()) : null,
@@ -40,6 +44,12 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
       },
       include: this.includeRelacoes,
     }) as Promise<DoacaoComRelacoes>;
+  }
+
+  async executarTransacao<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(fn);
   }
 
   async buscarPorId(id: string): Promise<DoacaoComRelacoes | null> {
@@ -63,7 +73,13 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
     }
 
     if (params.busca) {
-      const cleanBusca = params.busca.replace(/\D/g, '');
+      const trimmedBusca = params.busca.trim();
+      const cleanBusca = trimmedBusca.replace(/\D/g, '');
+      const isDocumentSearch =
+        cleanBusca.length >= 8 &&
+        cleanBusca.length <= 14 &&
+        /^[0-9.\-/ ]+$/.test(trimmedBusca);
+
       where.OR = [
         { descricao: { contains: params.busca, mode: 'insensitive' } },
         { unidadeMedida: { contains: params.busca, mode: 'insensitive' } },
@@ -72,7 +88,7 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
             nomeRazaoSocial: { contains: params.busca, mode: 'insensitive' },
           },
         },
-        ...(cleanBusca
+        ...(isDocumentSearch
           ? [
               {
                 doador: {

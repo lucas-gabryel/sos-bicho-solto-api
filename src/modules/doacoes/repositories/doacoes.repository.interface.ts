@@ -25,11 +25,17 @@ export interface ListarDoacoesParams {
 }
 
 export interface IDoacoesRepository {
-  criar(data: CriarDoacaoData): Promise<DoacaoComRelacoes>;
+  criar(
+    data: CriarDoacaoData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DoacaoComRelacoes>;
   buscarPorId(id: string): Promise<DoacaoComRelacoes | null>;
   listar(
     params: ListarDoacoesParams,
   ): Promise<{ data: DoacaoComRelacoes[]; total: number }>;
+  executarTransacao<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T>;
 }
 
 export const DOACOES_REPOSITORY = 'DOACOES_REPOSITORY';

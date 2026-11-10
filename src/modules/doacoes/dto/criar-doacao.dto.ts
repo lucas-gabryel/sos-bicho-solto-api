@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -62,7 +63,13 @@ export class CriarDoacaoDto {
     example: '2026-10-26',
     description: 'Data em que a doação foi recebida (YYYY-MM-DD)',
   })
-  @IsDateString({}, { message: 'A data de recebimento deve ser válida no formato YYYY-MM-DD' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'A data de recebimento deve estar estritamente no formato YYYY-MM-DD.',
+  })
+  @IsDateString(
+    { strict: true },
+    { message: 'A data de recebimento deve ser válida no formato YYYY-MM-DD.' },
+  )
   readonly dataRecebimento!: string;
 
   @ApiPropertyOptional({

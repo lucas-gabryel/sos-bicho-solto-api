@@ -10,6 +10,7 @@ import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import type { IDoadoresRepository } from '#src/modules/doadores/repositories/doadores.repository.interface';
 import { DOADORES_REPOSITORY } from '#src/modules/doadores/repositories/doadores.repository.interface';
 import { EstoqueService } from '#src/modules/estoque/estoque.service';
+import { normalizarItemEstoque } from '#src/modules/estoque/utils/estoque.utils';
 import { TipoMovimentacaoEstoque } from '@prisma/client';
 import { CriarDoacaoDto } from './dto/criar-doacao.dto';
 import { DoacaoResponseDto } from './dto/doacao-response.dto';
@@ -71,38 +72,62 @@ export class DoacoesService {
       quantidadeFinal = Number(dto.quantidade);
     }
 
-    const dataRecebimento = new Date(dto.dataRecebimento);
-    if (Number.isNaN(dataRecebimento.getTime())) {
+    const partesData = dto.dataRecebimento.split('T')[0].split('-');
+    const ano = Number(partesData[0]);
+    const mes = Number(partesData[1]);
+    const dia = Number(partesData[2]);
+
+    const dataRecebimento = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
+    if (
+      Number.isNaN(dataRecebimento.getTime()) ||
+      Number.isNaN(ano) ||
+      Number.isNaN(mes) ||
+      Number.isNaN(dia)
+    ) {
       throw new BadRequestException('Data de recebimento inválida.');
     }
 
-    const doacao = await this.doacoesRepository.criar({
-      tipo: dto.tipo,
-      valor: valorFinal,
-      quantidade: quantidadeFinal,
-      unidadeMedida: dto.unidadeMedida?.trim() || null,
-      descricao: dto.descricao?.trim() || null,
-      dataRecebimento,
-      doadorId: doadorIdFinal,
-      registradoPorId: usuario.sub,
-    });
-
-    if (dto.tipo !== TipoDoacao.DINHEIRO && quantidadeFinal && quantidadeFinal > 0) {
-      await this.estoqueService.registrarMovimentacao(
+    return this.doacoesRepository.executarTransacao(async (tx) => {
+      const doacao = await this.doacoesRepository.criar(
         {
-          tipo: TipoMovimentacaoEstoque.ENTRADA,
-          tipoItem: dto.tipo,
-          descricaoItem: dto.descricao?.trim() || `Item de ${dto.tipo}`,
+          tipo: dto.tipo,
+          valor: valorFinal,
           quantidade: quantidadeFinal,
-          unidadeMedida: dto.unidadeMedida?.trim() || 'UN',
-          motivo: `Entrada automática registrada via Doação #${doacao.id.slice(0, 8)}`,
-          doacaoId: doacao.id,
+          unidadeMedida: dto.unidadeMedida?.trim() || null,
+          descricao: dto.descricao?.trim() || null,
+          dataRecebimento,
+          doadorId: doadorIdFinal,
+          registradoPorId: usuario.sub,
         },
-        usuario,
+        tx,
       );
-    }
 
-    return DoacaoResponseDto.fromEntity(doacao);
+      if (dto.tipo !== TipoDoacao.DINHEIRO && quantidadeFinal && quantidadeFinal > 0) {
+        const {
+          descricaoItem: descFormatada,
+          unidadeMedida: unFormatada,
+        } = normalizarItemEstoque(
+          dto.descricao?.trim() || `Item de ${dto.tipo}`,
+          dto.unidadeMedida,
+        );
+
+        await this.estoqueService.registrarMovimentacao(
+          {
+            tipo: TipoMovimentacaoEstoque.ENTRADA,
+            tipoItem: dto.tipo,
+            descricaoItem: descFormatada,
+            quantidade: quantidadeFinal,
+            unidadeMedida: unFormatada,
+            motivo: `Entrada automática registrada via Doação #${doacao.id.slice(0, 8)}`,
+            doacaoId: doacao.id,
+          },
+          usuario,
+          tx,
+        );
+      }
+
+      return DoacaoResponseDto.fromEntity(doacao);
+    });
   }
 
   async listar(query: FiltrarDoacoesDto): Promise<RespostaPaginada<DoacaoResponseDto>> {

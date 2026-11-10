@@ -5,9 +5,11 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
-  IsPositive,
   IsString,
+  IsUUID,
   MaxLength,
+  Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class RegistrarMovimentacaoDto {
@@ -46,14 +48,17 @@ export class RegistrarMovimentacaoDto {
   descricaoItem!: string;
 
   @ApiProperty({
-    description: 'Quantidade movimentada',
+    description: 'Quantidade movimentada (para AJUSTE permite zero ou positivo; para ENTRADA/SAIDA estritamente maior que zero)',
     example: 2,
   })
   @IsNumber(
     { maxDecimalPlaces: 2 },
     { message: 'A quantidade deve ser um número com até 2 casas decimais.' },
   )
-  @IsPositive({ message: 'A quantidade deve ser maior que zero.' })
+  @ValidateIf((o: RegistrarMovimentacaoDto) => o.tipo === TipoMovimentacaoEstoque.AJUSTE)
+  @Min(0, { message: 'A quantidade para ajuste deve ser maior ou igual a zero.' })
+  @ValidateIf((o: RegistrarMovimentacaoDto) => o.tipo !== TipoMovimentacaoEstoque.AJUSTE)
+  @Min(0.01, { message: 'A quantidade deve ser maior que zero.' })
   @IsNotEmpty({ message: 'A quantidade é obrigatória.' })
   quantidade!: number;
 
@@ -79,10 +84,10 @@ export class RegistrarMovimentacaoDto {
 
   @ApiPropertyOptional({
     description: 'ID da doação vinculada, caso se aplique',
-    example: 'uuid-da-doacao',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
-  @IsString({ message: 'O ID da doação deve ser um texto.' })
   @IsOptional()
+  @IsUUID('4', { message: 'O ID da doação deve ser um UUID válido.' })
   doacaoId?: string;
 }
 

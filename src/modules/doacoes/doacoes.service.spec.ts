@@ -15,6 +15,7 @@ describe('DoacoesService', () => {
     criar: jest.fn(),
     buscarPorId: jest.fn(),
     listar: jest.fn(),
+    executarTransacao: jest.fn().mockImplementation((fn) => fn({})),
   };
 
   const mockDoadoresRepository = {
@@ -106,6 +107,7 @@ describe('DoacoesService', () => {
           valor: 150.0,
           doadorId: 'doador-123',
         }),
+        expect.anything(),
       );
       expect(result.id).toBe('doacao-123');
       expect(result.anonima).toBe(false);
@@ -137,6 +139,7 @@ describe('DoacoesService', () => {
           quantidade: 20,
           doadorId: null,
         }),
+        expect.anything(),
       );
       expect(result.anonima).toBe(true);
     });
@@ -190,6 +193,32 @@ describe('DoacoesService', () => {
       };
 
       await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve abortar e propagar erro se a movimentação automática no estoque falhar (rollback transacional)', async () => {
+      mockDoadoresRepository.buscarPorId.mockResolvedValue(mockDoador);
+      mockDoacoesRepository.criar.mockResolvedValue({
+        ...mockDoacaoCriada,
+        tipo: TipoDoacao.RACAO,
+        quantidade: 10,
+      });
+      mockEstoqueService.registrarMovimentacao.mockRejectedValue(
+        new BadRequestException('Falha no estoque'),
+      );
+
+      const dto: CriarDoacaoDto = {
+        tipo: TipoDoacao.RACAO,
+        quantidade: 10,
+        unidadeMedida: 'kg',
+        descricao: 'Ração Especial',
+        dataRecebimento: '2026-10-26',
+        doadorId: 'doador-123',
+      };
+
+      await expect(service.criar(dto, usuarioLogado)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockDoacoesRepository.executarTransacao).toHaveBeenCalled();
     });
   });
 
