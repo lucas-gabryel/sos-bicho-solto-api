@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TipoDoacao } from '@prisma/client';
 import { DOADORES_REPOSITORY } from '#src/modules/doadores/repositories/doadores.repository.interface';
+import { EstoqueService } from '#src/modules/estoque/estoque.service';
 import { DoacoesService } from './doacoes.service';
 import { CriarDoacaoDto } from './dto/criar-doacao.dto';
 import { FiltrarDoacoesDto } from './dto/filtrar-doacoes.dto';
@@ -18,6 +19,10 @@ describe('DoacoesService', () => {
 
   const mockDoadoresRepository = {
     buscarPorId: jest.fn(),
+  };
+
+  const mockEstoqueService = {
+    registrarMovimentacao: jest.fn(),
   };
 
   const usuarioLogado = {
@@ -68,6 +73,10 @@ describe('DoacoesService', () => {
         {
           provide: DOADORES_REPOSITORY,
           useValue: mockDoadoresRepository,
+        },
+        {
+          provide: EstoqueService,
+          useValue: mockEstoqueService,
         },
       ],
     }).compile();

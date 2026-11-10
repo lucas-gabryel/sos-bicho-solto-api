@@ -7,19 +7,20 @@ datasource db {
 }
 
 model Usuario {
-  id                 String   @id @default(uuid())
-  codigo             Int      @unique @default(autoincrement())
-  nome               String
-  email              String   @unique
-  senhaHash          String   @map("senha_hash")
-  perfil             Perfil   @default(PROTETOR)
-  ativo              Boolean  @default(true)
-  criadoEm           DateTime @default(now()) @map("criado_em")
-  criadoPorId        String?  @map("criado_por_id")
-  modificadoEm       DateTime @updatedAt @map("modificado_em")
-  modificadoPorId    String?  @map("modificado_por_id")
-  adocoesRegistradas Adocao[] @relation("AdocaoProtetor")
-  doacoesRegistradas Doacao[] @relation("DoacaoRegistrador")
+  id                       String                @id @default(uuid())
+  codigo                   Int                   @unique @default(autoincrement())
+  nome                     String
+  email                    String                @unique
+  senhaHash                String                @map("senha_hash")
+  perfil                   Perfil                @default(PROTETOR)
+  ativo                    Boolean               @default(true)
+  criadoEm                 DateTime              @default(now()) @map("criado_em")
+  criadoPorId              String?               @map("criado_por_id")
+  modificadoEm             DateTime              @updatedAt @map("modificado_em")
+  modificadoPorId          String?               @map("modificado_por_id")
+  adocoesRegistradas       Adocao[]              @relation("AdocaoProtetor")
+  doacoesRegistradas       Doacao[]              @relation("DoacaoRegistrador")
+  movimentacoesRegistradas MovimentacaoEstoque[] @relation("MovimentacaoRegistrador")
 
   @@map("usuarios")
 }
@@ -164,23 +165,54 @@ enum TipoDoacao {
 }
 
 model Doacao {
-  id              String      @id @default(uuid())
+  id              String                @id @default(uuid())
   tipo            TipoDoacao
-  valor           Decimal?    @db.Decimal(10, 2)
-  quantidade      Decimal?    @db.Decimal(10, 2)
-  unidadeMedida   String?     @map("unidade_medida")
+  valor           Decimal?              @db.Decimal(10, 2)
+  quantidade      Decimal?              @db.Decimal(10, 2)
+  unidadeMedida   String?               @map("unidade_medida")
   descricao       String?
-  dataRecebimento DateTime    @map("data_recebimento") @db.Date
-  doadorId        String?     @map("doador_id")
-  registradoPorId String?     @map("registrado_por_id")
-  ativo           Boolean     @default(true)
-  criadoEm        DateTime    @default(now()) @map("criado_em")
-  modificadoEm    DateTime    @updatedAt @map("modificado_em")
-  doador          Doador?     @relation(fields: [doadorId], references: [id])
-  registradoPor   Usuario?    @relation("DoacaoRegistrador", fields: [registradoPorId], references: [id])
+  dataRecebimento DateTime              @map("data_recebimento") @db.Date
+  doadorId        String?               @map("doador_id")
+  registradoPorId String?               @map("registrado_por_id")
+  ativo           Boolean               @default(true)
+  criadoEm        DateTime              @default(now()) @map("criado_em")
+  modificadoEm    DateTime              @updatedAt @map("modificado_em")
+  doador          Doador?               @relation(fields: [doadorId], references: [id])
+  registradoPor   Usuario?              @relation("DoacaoRegistrador", fields: [registradoPorId], references: [id])
+  movimentacoes   MovimentacaoEstoque[]
 
   @@index([tipo])
   @@index([doadorId])
   @@index([dataRecebimento])
   @@map("doacoes")
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+model MovimentacaoEstoque {
+  id              String                  @id @default(uuid())
+  tipo            TipoMovimentacaoEstoque
+  tipoItem        TipoDoacao              @map("tipo_item")
+  descricaoItem   String                  @map("descricao_item")
+  quantidade      Decimal                 @db.Decimal(10, 2)
+  unidadeMedida   String                  @map("unidade_medida")
+  motivo          String
+  dataMovimento   DateTime                @default(now()) @map("data_movimento")
+  doacaoId        String?                 @map("doacao_id")
+  registradoPorId String?                 @map("registrado_por_id")
+  ativo           Boolean                 @default(true)
+  criadoEm        DateTime                @default(now()) @map("criado_em")
+  modificadoEm    DateTime                @updatedAt @map("modificado_em")
+  doacao          Doacao?                 @relation(fields: [doacaoId], references: [id], onDelete: SetNull)
+  registradoPor   Usuario?                @relation("MovimentacaoRegistrador", fields: [registradoPorId], references: [id])
+
+  @@index([tipoItem])
+  @@index([dataMovimento])
+  @@index([descricaoItem])
+  @@index([doacaoId])
+  @@map("movimentacoes_estoque")
 }

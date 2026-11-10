@@ -9,6 +9,8 @@ import { paginar, RespostaPaginada } from '#src/common/dto/paginacao.dto';
 import { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import type { IDoadoresRepository } from '#src/modules/doadores/repositories/doadores.repository.interface';
 import { DOADORES_REPOSITORY } from '#src/modules/doadores/repositories/doadores.repository.interface';
+import { EstoqueService } from '#src/modules/estoque/estoque.service';
+import { TipoMovimentacaoEstoque } from '@prisma/client';
 import { CriarDoacaoDto } from './dto/criar-doacao.dto';
 import { DoacaoResponseDto } from './dto/doacao-response.dto';
 import { FiltrarDoacoesDto } from './dto/filtrar-doacoes.dto';
@@ -22,6 +24,7 @@ export class DoacoesService {
     private readonly doacoesRepository: IDoacoesRepository,
     @Inject(DOADORES_REPOSITORY)
     private readonly doadoresRepository: IDoadoresRepository,
+    private readonly estoqueService: EstoqueService,
   ) {}
 
   async criar(
@@ -83,6 +86,21 @@ export class DoacoesService {
       doadorId: doadorIdFinal,
       registradoPorId: usuario.sub,
     });
+
+    if (dto.tipo !== TipoDoacao.DINHEIRO && quantidadeFinal && quantidadeFinal > 0) {
+      await this.estoqueService.registrarMovimentacao(
+        {
+          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipoItem: dto.tipo,
+          descricaoItem: dto.descricao?.trim() || `Item de ${dto.tipo}`,
+          quantidade: quantidadeFinal,
+          unidadeMedida: dto.unidadeMedida?.trim() || 'UN',
+          motivo: `Entrada automática registrada via Doação #${doacao.id.slice(0, 8)}`,
+          doacaoId: doacao.id,
+        },
+        usuario,
+      );
+    }
 
     return DoacaoResponseDto.fromEntity(doacao);
   }

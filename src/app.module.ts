@@ -12,6 +12,7 @@ import { AnimaisModule } from './modules/animais/animais.module';
 import { TutoresModule } from './modules/tutores/tutores.module';
 import { DoadoresModule } from './modules/doadores/doadores.module';
 import { DoacoesModule } from './modules/doacoes/doacoes.module';
+import { EstoqueModule } from './modules/estoque/estoque.module';
 import { AdocoesModule } from './modules/adocoes/adocoes.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 
@@ -25,6 +26,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     TutoresModule,
     DoadoresModule,
     DoacoesModule,
+    EstoqueModule,
     AdocoesModule,
     DashboardModule,
     HealthModule,
