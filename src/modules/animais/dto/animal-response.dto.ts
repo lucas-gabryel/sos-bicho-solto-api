@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Animal, StatusAnimal, FotoAnimal } from '@prisma/client';
+import {
+  EventoAnimalComAutor,
+  EventoAnimalResponseDto,
+} from './evento-animal-response.dto';
 
 export class FotoResponseDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174002' })
@@ -11,12 +15,16 @@ export class FotoResponseDto {
   @ApiProperty({ example: true })
   readonly principal!: boolean;
 
+  @ApiProperty({ example: '2026-06-21T10:00:00Z', required: false })
+  readonly criadoEm?: Date;
+
   static fromEntity(foto: FotoAnimal): FotoResponseDto {
     const dto = new FotoResponseDto();
     Object.assign(dto, {
       id: foto.id,
       url: foto.url,
       principal: foto.principal,
+      ...(foto.criadoEm && { criadoEm: foto.criadoEm }),
     });
     return dto;
   }
@@ -86,8 +94,14 @@ export class AnimalResponseDto {
   @ApiProperty({ type: [FotoResponseDto], required: false })
   readonly fotos?: FotoResponseDto[];
 
+  @ApiProperty({ type: [EventoAnimalResponseDto], required: false })
+  readonly eventos?: EventoAnimalResponseDto[];
+
   static fromEntity(
-    animal: Animal & { fotos?: FotoAnimal[] },
+    animal: Animal & {
+      fotos?: FotoAnimal[];
+      eventos?: EventoAnimalComAutor[];
+    },
   ): AnimalResponseDto {
     const dto = new AnimalResponseDto();
     Object.assign(dto, {
@@ -117,7 +131,13 @@ export class AnimalResponseDto {
               id: f.id,
               url: f.url,
               principal: f.principal,
+              ...(f.criadoEm && { criadoEm: f.criadoEm }),
             }))
+        : [],
+      eventos: animal.eventos
+        ? animal.eventos
+            .filter((e) => e.ativo !== false)
+            .map((e) => EventoAnimalResponseDto.fromEntity(e))
         : [],
     });
     return dto;
