@@ -5,10 +5,17 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { EspecieAnimal, SexoAnimal } from '@prisma/client';
+import {
+  EspecieAnimal,
+  MotivoSaidaAnimal,
+  SexoAnimal,
+  StatusAnimal,
+  TipoEventoAnimal,
+} from '@prisma/client';
 import { AnimaisService } from './animais.service';
 import { ANIMAIS_REPOSITORY } from './repositories/animais.repository.interface';
 import { FiltrarAnimaisDto } from './dto/filtrar-animais.dto';
+import { FiltrarEventosAnimalDto } from './dto/filtrar-eventos-animal.dto';
 import { USUARIOS_REPOSITORY } from '#src/modules/usuarios/repositories/usuarios.repository.interface';
 import * as bcrypt from 'bcrypt';
 
@@ -27,6 +34,8 @@ describe('AnimaisService', () => {
     removerFoto: jest.fn(),
     definirFotoPrincipal: jest.fn(),
     buscarFotoPorId: jest.fn(),
+    adicionarEvento: jest.fn(),
+    listarEventos: jest.fn(),
   };
 
   const mockUsuariosRepository = {
@@ -254,6 +263,272 @@ describe('AnimaisService', () => {
         usuarioAdmin.sub,
       );
       expect(result.nome).toBe('Rex Atualizado');
+    });
+
+    it('deve registrar automaticamente evento MEDICO ao atualizar informações médicas', async () => {
+      const dto = {
+        pesoAtual: 12.4,
+        vacinado: true,
+        castrado: true,
+        observacoes: 'Recuperado de verminose e vermifugado.',
+      };
+
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.atualizar.mockResolvedValue({
+        ...mockAnimal,
+        ...dto,
+      });
+
+      await service.atualizar('123', dto, usuarioAdmin);
+
+      expect(mockRepository.atualizar).toHaveBeenCalledTimes(1);
+      const [idChamado, dtoChamado, autorChamado, eventosGerados] =
+        mockRepository.atualizar.mock.calls[0] as [
+          string,
+          unknown,
+          string,
+          Array<{
+            tipo: TipoEventoAnimal;
+            automatico: boolean;
+            descricao: string;
+          }>,
+        ];
+      expect(idChamado).toBe('123');
+      expect(dtoChamado).toEqual(dto);
+      expect(autorChamado).toBe(usuarioAdmin.sub);
+      expect(eventosGerados).toHaveLength(1);
+      expect(eventosGerados[0].tipo).toBe(TipoEventoAnimal.MEDICO);
+      expect(eventosGerados[0].automatico).toBe(true);
+      expect(eventosGerados[0].descricao).toContain(
+        'peso atual registrado: 12.4 kg',
+      );
+    });
+
+    it('deve registrar automaticamente evento SAIDA ao alterar status para TRANSFERIDO ou OBITO', async () => {
+      const dto = {
+        status: StatusAnimal.TRANSFERIDO,
+        motivoSaidaDescricao: 'Encaminhado para abrigo parceiro',
+      };
+
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.atualizar.mockResolvedValue({
+        ...mockAnimal,
+        status: StatusAnimal.TRANSFERIDO,
+      });
+
+      await service.atualizar('123', dto, usuarioAdmin);
+
+      expect(mockRepository.atualizar).toHaveBeenCalledWith(
+        '123',
+        dto,
+        usuarioAdmin.sub,
+        [
+          expect.objectContaining({
+            tipo: TipoEventoAnimal.SAIDA,
+            motivoSaida: MotivoSaidaAnimal.TRANSFERENCIA,
+            automatico: true,
+            descricao:
+              'Saída da ONG por transferência: Encaminhado para abrigo parceiro',
+          }),
+        ],
+      );
+    });
+
+    it('deve bloquear alteração manual de status para ADOTADO fora do módulo de adoções', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+
+      await expect(
+        service.atualizar(
+          '123',
+          { status: StatusAnimal.ADOTADO },
+          usuarioAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepository.atualizar).not.toHaveBeenCalled();
+    });
+
+    it('deve inserir evento incremental enviado junto com novoEvento no PATCH', async () => {
+      const dataEvento = new Date('2026-11-17T15:00:00.000Z');
+      const dto = {
+        novoEvento: {
+          descricao: 'Exame laboratorial anexado',
+          data: dataEvento,
+          documentoUrl: 'https://exemplo.com/laudo.pdf',
+        },
+      };
+
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.atualizar.mockResolvedValue(mockAnimal);
+
+      await service.atualizar('123', dto, usuarioAdmin);
+
+      expect(mockRepository.atualizar).toHaveBeenCalledWith(
+        '123',
+        dto,
+        usuarioAdmin.sub,
+        [
+          expect.objectContaining({
+            tipo: TipoEventoAnimal.OUTRO,
+            descricao: 'Exame laboratorial anexado',
+            dataEvento,
+            documentoUrl: 'https://exemplo.com/laudo.pdf',
+            documentoTipo: 'application/pdf',
+            automatico: false,
+          }),
+        ],
+      );
+    });
+  });
+
+  describe('adicionarEvento e listarEventos', () => {
+    it('deve adicionar um evento manual com documento comprobatório (PDF) via URL', async () => {
+      const dataEvento = new Date('2026-11-17T12:00:00.000Z');
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.adicionarEvento.mockResolvedValue({
+        id: 'ev-1',
+        animalId: '123',
+        tipo: TipoEventoAnimal.MEDICO,
+        motivoSaida: null,
+        descricao: 'Hemograma completo realizado',
+        dataEvento,
+        documentoUrl: 'https://exemplo.com/hemograma.pdf',
+        documentoNome: 'hemograma.pdf',
+        documentoTipo: 'application/pdf',
+        automatico: false,
+        ativo: true,
+        criadoEm: dataEvento,
+        criadoPorId: usuarioAdmin.sub,
+        criadoPor: {
+          id: usuarioAdmin.sub,
+          nome: 'Admin',
+          email: 'admin@test.com',
+        },
+      });
+
+      const result = await service.adicionarEvento(
+        '123',
+        {
+          tipo: TipoEventoAnimal.MEDICO,
+          descricao: 'Hemograma completo realizado',
+          data: dataEvento,
+          documentoUrl: 'https://exemplo.com/hemograma.pdf',
+          documentoNome: 'hemograma.pdf',
+        },
+        usuarioAdmin,
+      );
+
+      expect(mockRepository.adicionarEvento).toHaveBeenCalledWith(
+        '123',
+        expect.objectContaining({
+          tipo: TipoEventoAnimal.MEDICO,
+          descricao: 'Hemograma completo realizado',
+          dataEvento,
+          documentoUrl: 'https://exemplo.com/hemograma.pdf',
+          documentoNome: 'hemograma.pdf',
+          documentoTipo: 'application/pdf',
+          automatico: false,
+        }),
+      );
+      expect(result.id).toBe('ev-1');
+      expect(result.data).toEqual(dataEvento);
+      expect(result.documentoUrl).toBe('https://exemplo.com/hemograma.pdf');
+    });
+
+    it('deve atualizar novoStatusAnimal ao registrar evento manual de SAIDA por OBITO', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.adicionarEvento.mockResolvedValue({
+        id: 'ev-obito',
+        animalId: '123',
+        tipo: TipoEventoAnimal.SAIDA,
+        motivoSaida: MotivoSaidaAnimal.OBITO,
+        descricao: 'Atestado veterinário de óbito',
+        dataEvento: new Date(),
+        documentoUrl: 'https://exemplo.com/atestado.pdf',
+        documentoNome: 'atestado.pdf',
+        documentoTipo: 'application/pdf',
+        automatico: false,
+        ativo: true,
+        criadoEm: new Date(),
+        criadoPorId: usuarioAdmin.sub,
+      });
+
+      await service.adicionarEvento(
+        '123',
+        {
+          tipo: TipoEventoAnimal.SAIDA,
+          motivoSaida: MotivoSaidaAnimal.OBITO,
+          descricao: 'Atestado veterinário de óbito',
+          documentoUrl: 'https://exemplo.com/atestado.pdf',
+        },
+        usuarioAdmin,
+      );
+
+      expect(mockRepository.adicionarEvento).toHaveBeenCalledWith(
+        '123',
+        expect.objectContaining({
+          tipo: TipoEventoAnimal.SAIDA,
+          motivoSaida: MotivoSaidaAnimal.OBITO,
+          novoStatusAnimal: StatusAnimal.OBITO,
+        }),
+      );
+    });
+
+    it('deve rejeitar arquivo com formato não permitido no upload', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+
+      await expect(
+        service.adicionarEvento(
+          '123',
+          { descricao: 'Arquivo malicioso' },
+          usuarioAdmin,
+          {
+            fieldname: 'documento',
+            originalname: 'script.exe',
+            encoding: '7bit',
+            mimetype: 'application/x-msdownload',
+            buffer: Buffer.from('test'),
+            size: 4,
+          },
+          'http://localhost:3000',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve listar eventos paginados da linha do tempo do animal', async () => {
+      mockRepository.buscarPorId.mockResolvedValue(mockAnimal);
+      mockRepository.listarEventos.mockResolvedValue({
+        data: [
+          {
+            id: 'ev-1',
+            animalId: '123',
+            tipo: TipoEventoAnimal.ENTRADA,
+            motivoSaida: null,
+            descricao: 'Entrada na ONG',
+            dataEvento: new Date('2026-06-20T10:00:00Z'),
+            documentoUrl: 'https://exemplo.com/rex.jpg',
+            documentoNome: null,
+            documentoTipo: 'image/jpeg',
+            automatico: true,
+            ativo: true,
+            criadoEm: new Date('2026-06-20T10:00:00Z'),
+            criadoPorId: 'admin-123',
+          },
+        ],
+        total: 1,
+      });
+
+      const filtros = new FiltrarEventosAnimalDto();
+      const result = await service.listarEventos('123', filtros);
+
+      expect(mockRepository.listarEventos).toHaveBeenCalledWith({
+        animalId: '123',
+        skip: 0,
+        take: 50,
+        tipo: undefined,
+      });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].tipo).toBe(TipoEventoAnimal.ENTRADA);
+      expect(result.meta.total).toBe(1);
     });
   });
 

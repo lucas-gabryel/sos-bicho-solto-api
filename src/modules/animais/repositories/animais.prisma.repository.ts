@@ -1,12 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '#src/database/prisma.service';
-import { Animal, FotoAnimal, Prisma } from '@prisma/client';
+import { Animal, FotoAnimal, Prisma, TipoEventoAnimal } from '@prisma/client';
 import { CriarAnimalDto } from '../dto/criar-animal.dto';
 import { AtualizarAnimalDto } from '../dto/atualizar-animal.dto';
+import { EventoAnimalComAutor } from '../dto/evento-animal-response.dto';
+import { inferirTipoDocumentoPorUrl } from '../utils/documento-evento.util';
 import {
+  AnimalComRelacoes,
+  CriarEventoAnimalData,
   IAnimaisRepository,
   ListarAnimaisParams,
+  ListarEventosAnimalParams,
 } from './animais.repository.interface';
+
+const INCLUDE_AUTOR_EVENTO = {
+  criadoPor: {
+    select: {
+      id: true,
+      nome: true,
+      email: true,
+    },
+  },
+} satisfies Prisma.EventoAnimalInclude;
+
+const INCLUDE_DETALHE_ANIMAL = {
+  fotos: { where: { ativo: true } },
+  eventos: {
+    where: { ativo: true },
+    orderBy: [{ dataEvento: 'desc' }, { criadoEm: 'desc' }],
+    include: INCLUDE_AUTOR_EVENTO,
+  },
+} satisfies Prisma.AnimalInclude;
 
 @Injectable()
 export class AnimaisPrismaRepository implements IAnimaisRepository {
@@ -15,12 +39,13 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
   async criar(
     dto: CriarAnimalDto,
     criadoPorId: string,
-  ): Promise<Animal & { fotos: FotoAnimal[] }> {
+  ): Promise<AnimalComRelacoes> {
     const hoje = new Date();
     const dd = String(hoje.getDate()).padStart(2, '0');
     const mm = String(hoje.getMonth() + 1).padStart(2, '0');
     const aaaa = hoje.getFullYear();
     const prefixo = `${dd}.${mm}.${aaaa}`;
+
     return this.prisma.$transaction(async (tx) => {
       const countHoje = await tx.animal.count({
         where: { numeroRegistro: { startsWith: prefixo } },
@@ -59,21 +84,66 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
         });
       }
 
+      const fotoPrincipal =
+        dto.fotos?.find((f) => f.principal) ?? dto.fotos?.[0];
+      const fotosExtras = (dto.fotos ?? []).filter((f) => f !== fotoPrincipal);
+
+      const eventosIniciais: Prisma.EventoAnimalCreateManyInput[] = [
+        {
+          animalId: animal.id,
+          tipo: TipoEventoAnimal.ENTRADA,
+          descricao: `Entrada na ONG — resgatado em: ${dto.localResgate}.`,
+          dataEvento: animal.criadoEm,
+          documentoUrl: fotoPrincipal?.url ?? null,
+          documentoTipo: fotoPrincipal?.url
+            ? (inferirTipoDocumentoPorUrl(fotoPrincipal.url) ?? 'image/jpeg')
+            : null,
+          automatico: true,
+          criadoPorId,
+        },
+        {
+          animalId: animal.id,
+          tipo: TipoEventoAnimal.MEDICO,
+          descricao: `Avaliação médica inicial: peso ${dto.pesoInicial} kg, ${
+            dto.vacinado ? 'vacinado' : 'não vacinado'
+          }, ${dto.castrado ? 'castrado' : 'não castrado'}${
+            dto.observacoes?.trim()
+              ? `. Observações: ${dto.observacoes.trim()}`
+              : ''
+          }.`,
+          dataEvento: animal.criadoEm,
+          automatico: true,
+          criadoPorId,
+        },
+        ...fotosExtras.map((f) => ({
+          animalId: animal.id,
+          tipo: TipoEventoAnimal.FOTO,
+          descricao: 'Foto registrada no cadastro inicial do animal.',
+          dataEvento: animal.criadoEm,
+          documentoUrl: f.url,
+          documentoTipo: inferirTipoDocumentoPorUrl(f.url) ?? 'image/jpeg',
+          automatico: true,
+          criadoPorId,
+        })),
+      ];
+
+      await tx.eventoAnimal.createMany({
+        data: eventosIniciais,
+      });
+
       const result = await tx.animal.findUniqueOrThrow({
         where: { id: animal.id },
-        include: { fotos: { where: { ativo: true } } },
+        include: INCLUDE_DETALHE_ANIMAL,
       });
 
       return result;
     });
   }
 
-  async buscarPorId(
-    id: string,
-  ): Promise<(Animal & { fotos: FotoAnimal[] }) | null> {
+  async buscarPorId(id: string): Promise<AnimalComRelacoes | null> {
     return this.prisma.animal.findUnique({
       where: { id },
-      include: { fotos: { where: { ativo: true } } },
+      include: INCLUDE_DETALHE_ANIMAL,
     });
   }
 
@@ -112,14 +182,15 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
       this.prisma.animal.count({ where }),
     ]);
 
-    return { data: data as (Animal & { fotos: FotoAnimal[] })[], total };
+    return { data: data as AnimalComRelacoes[], total };
   }
 
   async atualizar(
     id: string,
     dto: AtualizarAnimalDto,
     modificadoPorId: string,
-  ): Promise<Animal & { fotos: FotoAnimal[] }> {
+    eventosParaCriar: CriarEventoAnimalData[] = [],
+  ): Promise<AnimalComRelacoes> {
     const updateData: Prisma.AnimalUpdateInput = {
       modificadoPorId,
     };
@@ -141,11 +212,37 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
     if (dto.observacoes !== undefined) updateData.observacoes = dto.observacoes;
     if (dto.dataNascimento !== undefined)
       updateData.dataNascimento = dto.dataNascimento;
+    if (dto.status !== undefined) updateData.status = dto.status;
 
-    return this.prisma.animal.update({
-      where: { id },
-      data: updateData,
-      include: { fotos: { where: { ativo: true } } },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.animal.update({
+        where: { id },
+        data: updateData,
+      });
+
+      if (eventosParaCriar.length > 0) {
+        await tx.eventoAnimal.createMany({
+          data: eventosParaCriar.map((ev) => ({
+            animalId: id,
+            tipo: ev.tipo,
+            motivoSaida: ev.motivoSaida ?? null,
+            descricao: ev.descricao,
+            dataEvento: ev.dataEvento ?? new Date(),
+            documentoUrl: ev.documentoUrl ?? null,
+            documentoNome: ev.documentoNome ?? null,
+            documentoTipo: ev.documentoTipo ?? null,
+            automatico: ev.automatico ?? false,
+            criadoPorId: ev.criadoPorId ?? modificadoPorId,
+          })),
+        });
+      }
+
+      const result = await tx.animal.findUniqueOrThrow({
+        where: { id },
+        include: INCLUDE_DETALHE_ANIMAL,
+      });
+
+      return result;
     });
   }
 
@@ -170,7 +267,7 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
         });
       }
 
-      return tx.fotoAnimal.create({
+      const foto = await tx.fotoAnimal.create({
         data: {
           animalId,
           url,
@@ -179,6 +276,23 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
           modificadoPorId: criadoPorId,
         },
       });
+
+      await tx.eventoAnimal.create({
+        data: {
+          animalId,
+          tipo: TipoEventoAnimal.FOTO,
+          descricao: principal
+            ? 'Nova foto adicionada e definida como foto principal do animal.'
+            : 'Nova foto adicionada ao histórico do animal.',
+          dataEvento: foto.criadoEm,
+          documentoUrl: url,
+          documentoTipo: inferirTipoDocumentoPorUrl(url) ?? 'image/jpeg',
+          automatico: true,
+          criadoPorId,
+        },
+      });
+
+      return foto;
     });
   }
 
@@ -214,5 +328,64 @@ export class AnimaisPrismaRepository implements IAnimaisRepository {
     return this.prisma.fotoAnimal.findUnique({
       where: { id: fotoId },
     });
+  }
+
+  async adicionarEvento(
+    animalId: string,
+    data: CriarEventoAnimalData,
+  ): Promise<EventoAnimalComAutor> {
+    return this.prisma.$transaction(async (tx) => {
+      if (data.novoStatusAnimal) {
+        await tx.animal.update({
+          where: { id: animalId },
+          data: {
+            status: data.novoStatusAnimal,
+            modificadoPorId: data.criadoPorId ?? undefined,
+          },
+        });
+      }
+
+      const evento = await tx.eventoAnimal.create({
+        data: {
+          animalId,
+          tipo: data.tipo,
+          motivoSaida: data.motivoSaida ?? null,
+          descricao: data.descricao,
+          dataEvento: data.dataEvento ?? new Date(),
+          documentoUrl: data.documentoUrl ?? null,
+          documentoNome: data.documentoNome ?? null,
+          documentoTipo: data.documentoTipo ?? null,
+          automatico: data.automatico ?? false,
+          criadoPorId: data.criadoPorId ?? null,
+        },
+        include: INCLUDE_AUTOR_EVENTO,
+      });
+
+      return evento;
+    });
+  }
+
+  async listarEventos(params: ListarEventosAnimalParams): Promise<{
+    data: EventoAnimalComAutor[];
+    total: number;
+  }> {
+    const where: Prisma.EventoAnimalWhereInput = {
+      animalId: params.animalId,
+      ativo: true,
+      ...(params.tipo && { tipo: params.tipo }),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.eventoAnimal.findMany({
+        where,
+        skip: params.skip,
+        take: params.take,
+        orderBy: [{ dataEvento: 'desc' }, { criadoEm: 'desc' }],
+        include: INCLUDE_AUTOR_EVENTO,
+      }),
+      this.prisma.eventoAnimal.count({ where }),
+    ]);
+
+    return { data: data, total };
   }
 }

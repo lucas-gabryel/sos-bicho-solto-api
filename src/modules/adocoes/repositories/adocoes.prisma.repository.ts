@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Adocao, Prisma, StatusAnimal } from '@prisma/client';
+import {
+  Adocao,
+  MotivoSaidaAnimal,
+  Prisma,
+  StatusAnimal,
+  TipoEventoAnimal,
+} from '@prisma/client';
 import { PrismaService } from '#src/database/prisma.service';
 import {
   IAdocoesRepository,
@@ -81,7 +87,12 @@ export class AdocoesPrismaRepository implements IAdocoesRepository {
         return null;
       }
 
-      return tx.adocao.create({
+      const tutor = await tx.tutor.findUnique({
+        where: { id: data.tutorId },
+        select: { nome: true },
+      });
+
+      const adocao = await tx.adocao.create({
         data: {
           animalId: data.animalId,
           tutorId: data.tutorId,
@@ -89,6 +100,26 @@ export class AdocoesPrismaRepository implements IAdocoesRepository {
           observacoes: data.observacoes,
         },
       });
+
+      await tx.eventoAnimal.create({
+        data: {
+          animalId: data.animalId,
+          tipo: TipoEventoAnimal.SAIDA,
+          motivoSaida: MotivoSaidaAnimal.ADOCAO,
+          descricao: `Saída da ONG por adoção${
+            tutor?.nome ? ` (tutor: ${tutor.nome})` : ''
+          }${
+            data.observacoes?.trim()
+              ? `. Observações: ${data.observacoes.trim()}`
+              : ''
+          }.`,
+          dataEvento: adocao.dataAdocao,
+          automatico: true,
+          criadoPorId: data.protetorId,
+        },
+      });
+
+      return adocao;
     });
   }
 
@@ -129,7 +160,26 @@ export class AdocoesPrismaRepository implements IAdocoesRepository {
           throw new DevolucaoInvalidaError();
         }
 
-        return tx.adocao.findUniqueOrThrow({ where: { id: data.id } });
+        const adocao = await tx.adocao.findUniqueOrThrow({
+          where: { id: data.id },
+        });
+
+        await tx.eventoAnimal.create({
+          data: {
+            animalId: data.animalId,
+            tipo: TipoEventoAnimal.ENTRADA,
+            descricao: `Retorno ao acolhimento na ONG por devolução de adoção${
+              data.observacoesDevolucao?.trim()
+                ? `. Observações: ${data.observacoesDevolucao.trim()}`
+                : ''
+            }.`,
+            dataEvento: adocao.devolvidoEm ?? new Date(),
+            automatico: true,
+            criadoPorId: data.devolvidoPorId,
+          },
+        });
+
+        return adocao;
       });
     } catch (error) {
       if (error instanceof DevolucaoInvalidaError) {

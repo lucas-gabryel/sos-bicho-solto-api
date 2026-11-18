@@ -105,6 +105,8 @@ describe('AdocoesService', () => {
       removerFoto: jest.fn(),
       definirFotoPrincipal: jest.fn(),
       buscarFotoPorId: jest.fn(),
+      adicionarEvento: jest.fn(),
+      listarEventos: jest.fn(),
     } as jest.Mocked<IAnimaisRepository>;
 
     const tutoresRepoMock: jest.Mocked<ITutoresRepository> = {
