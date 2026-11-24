@@ -21,6 +21,7 @@ model Usuario {
   adocoesRegistradas       Adocao[]              @relation("AdocaoProtetor")
   doacoesRegistradas       Doacao[]              @relation("DoacaoRegistrador")
   movimentacoesRegistradas MovimentacaoEstoque[] @relation("MovimentacaoRegistrador")
+  eventosAnimalRegistrados EventoAnimal[]        @relation("EventoAnimalRegistrador")
 
   @@map("usuarios")
 }
@@ -86,8 +87,9 @@ model Animal {
   modificadoEm    DateTime      @updatedAt @map("modificado_em")
   modificadoPorId String?       @map("modificado_por_id")
   adocoes         Adocao[]
-  tutor           Tutor?        @relation(fields: [tutorId], references: [id])
+  tutor           Tutor?         @relation(fields: [tutorId], references: [id])
   fotos           FotoAnimal[]
+  eventos         EventoAnimal[]
 
   @@index([status])
   @@index([especie])
@@ -109,6 +111,29 @@ model FotoAnimal {
 
   @@index([animalId])
   @@map("fotos_animal")
+}
+
+model EventoAnimal {
+  id            String             @id @default(uuid())
+  animalId      String             @map("animal_id")
+  tipo          TipoEventoAnimal   @default(OUTRO)
+  motivoSaida   MotivoSaidaAnimal? @map("motivo_saida")
+  descricao     String
+  dataEvento    DateTime           @default(now()) @map("data_evento")
+  documentoUrl  String?            @map("documento_url")
+  documentoNome String?            @map("documento_nome")
+  documentoTipo String?            @map("documento_tipo")
+  automatico    Boolean            @default(false)
+  ativo         Boolean            @default(true)
+  criadoEm      DateTime           @default(now()) @map("criado_em")
+  criadoPorId   String?            @map("criado_por_id")
+  animal        Animal             @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  criadoPor     Usuario?           @relation("EventoAnimalRegistrador", fields: [criadoPorId], references: [id])
+
+  @@index([animalId])
+  @@index([dataEvento])
+  @@index([tipo])
+  @@map("eventos_animal")
 }
 
 model Adocao {
@@ -154,6 +179,22 @@ enum PorteAnimal {
 enum StatusAnimal {
   ACOLHIMENTO
   ADOTADO
+  TRANSFERIDO
+  OBITO
+}
+
+enum TipoEventoAnimal {
+  ENTRADA
+  SAIDA
+  MEDICO
+  FOTO
+  OUTRO
+}
+
+enum MotivoSaidaAnimal {
+  ADOCAO
+  TRANSFERENCIA
+  OBITO
 }
 
 enum TipoDoacao {
