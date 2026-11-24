@@ -83,6 +83,39 @@ Resposta (chaves iguais ao `DashboardStats` do front):
 { "totalAnimais": 5, "emAcolhimento": 3, "adotados": 2, "tutores": 12 }
 ```
 
+## Relatórios — `RelatoriosController` / `RelatoriosModule`
+
+Relatórios gerenciais **em PDF** (`Content-Type: application/pdf`, download como anexo), gerados com
+`pdfmake` e fonte Roboto embutida. Todos seguem o mesmo padrão visual, voltado à gestão e à prestação
+de contas: **capa** (logo, título, período, emissão e índice), **resumo executivo** (indicadores +
+texto descritivo), seções numeradas com **gráficos** (colunas, rosca, barras, progresso) e tabelas, e
+**notas metodológicas**. Não há fichas individuais: a ficha de cada animal/acolhedor é impressa nas
+respectivas telas.
+
+| Método | Rota                      | Acesso | Filtros (query)          |
+| ------ | ------------------------- | ------ | ------------------------ |
+| GET    | `/relatorios/animais`     | ADMIN  | `de`, `ate`, `especie`   |
+| GET    | `/relatorios/acolhedores` | ADMIN  | `de`, `ate`              |
+| GET    | `/relatorios/doacoes`     | ADMIN  | `de`, `ate`              |
+
+- `de` / `ate`: ISO date-time (o front envia início/fim do dia local). Sem período = todo o histórico.
+  `de > ate` → **400**.
+- **Período:** define as movimentações contabilizadas e o eixo dos gráficos de evolução (semanas até
+  ~1 mês, meses até ~15 meses, anos acima disso). A **situação atual** é sempre a da data de emissão.
+- `especie` (animais): restringe todo o relatório a cães ou gatos.
+
+Conteúdo de cada relatório:
+
+- **Animais:** entradas, adoções (tempo médio até a adoção), devoluções (taxa), transferências e
+  óbitos; evolução no período; animais por situação; cobertura de castração/vacinação; tabelas das
+  movimentações; animais há mais de 90 dias em acolhimento.
+- **Acolhedores** (tutores + adotantes, ver [regra de situação](./00-visao-geral.md#glossário)):
+  perfil dos acolhedores, tempo de guarda, cadastros/adoções/devoluções do período, onde está cada
+  animal adotado, adotantes com devolução e fila de espera pela primeira adoção.
+- **Doações:** arrecadação em dinheiro e quantidade de doações no tempo, doações por tipo,
+  principais doadores, itens recebidos e estoque (entradas/saídas no período e saldo atual, com a
+  mesma regra de saldo do módulo de estoque).
+
 ---
 
 ## Exemplos de payload

@@ -15,6 +15,7 @@ import { DoacoesModule } from './modules/doacoes/doacoes.module';
 import { EstoqueModule } from './modules/estoque/estoque.module';
 import { AdocoesModule } from './modules/adocoes/adocoes.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     EstoqueModule,
     AdocoesModule,
     DashboardModule,
+    RelatoriosModule,
     HealthModule,
   ],
 

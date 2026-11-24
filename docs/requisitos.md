@@ -21,6 +21,7 @@
 | RF09 🆕       | O sistema deve permitir consultar o **histórico de adoções** (com filtros por tutor, animal e período).                                                                                                                                                                                                         | Média      | RF07       |
 | RF10 🆕       | O sistema deve fornecer um **dashboard** com métricas (total de animais, em acolhimento, adotados e total de tutores).                                                                                                                                                                                          | Média      | RF02       |
 | RF11 🆕       | O sistema deve permitir gerenciar as **fotos** do animal (adicionar, definir principal e remover).                                                                                                                                                                                                              | Média      | RF04       |
+| RF12 🆕       | O sistema deve gerar **relatórios gerenciais em PDF**, padronizados (capa, indicadores, texto descritivo e gráficos), de **animais**, **acolhedores** (tutores e adotantes) e **doações** (doadores, doações e estoque), filtráveis por período. Acesso somente ADMIN. | Média      | RF07, RF09 |
 
 ---
 
@@ -84,6 +85,7 @@
 | Fluxo de adoção e devolução              | RF07, RF08, RN06, RN07, RN18, RN19, RNF07              | [04](./04-modelo-de-dados.md), [11](./11-endpoints.md)                 |
 | Histórico de adoções                     | RF09, RN18                                             | [04](./04-modelo-de-dados.md)                                          |
 | Dashboard / métricas                     | RF10                                                   | [11](./11-endpoints.md)                                                |
+| Relatórios gerenciais (PDF)              | RF12                                                   | [11](./11-endpoints.md)                                                |
 | Busca e filtros                          | RF05, RN10, RN11, RNF05, RNF09                         | [11](./11-endpoints.md)                                                |
 | Exclusão auditada e segura (soft delete) | RF02, RN03, RN14, RN15, RN17                           | [04](./04-modelo-de-dados.md), [06](./06-autenticacao-e-permissoes.md) |
 | Auditoria / acompanhamento evolutivo     | RF04, RN15                                             | [04](./04-modelo-de-dados.md)                                          |
