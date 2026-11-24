@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { DirecaoDoacao, Prisma, TipoDoacao } from '@prisma/client';
 import { PrismaService } from '#src/database/prisma.service';
 import {
   CriarDoacaoData,
@@ -31,6 +31,7 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
     return client.doacao.create({
       data: {
         tipo: data.tipo,
+        direcao: data.direcao ?? DirecaoDoacao.RECEBIDA,
         valor: data.valor !== undefined && data.valor !== null ? new Prisma.Decimal(data.valor.toString()) : null,
         quantidade:
           data.quantidade !== undefined && data.quantidade !== null
@@ -38,9 +39,13 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
             : null,
         unidadeMedida: data.unidadeMedida,
         descricao: data.descricao,
+        beneficiario: data.beneficiario,
         dataRecebimento: data.dataRecebimento,
         doadorId: data.doadorId,
         registradoPorId: data.registradoPorId,
+        documentoUrl: data.documentoUrl,
+        documentoNome: data.documentoNome,
+        documentoTipo: data.documentoTipo,
       },
       include: this.includeRelacoes,
     }) as Promise<DoacaoComRelacoes>;
@@ -68,6 +73,10 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
       where.tipo = params.tipo;
     }
 
+    if (params.direcao) {
+      where.direcao = params.direcao;
+    }
+
     if (params.doadorId) {
       where.doadorId = params.doadorId;
     }
@@ -82,6 +91,7 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
 
       where.OR = [
         { descricao: { contains: params.busca, mode: 'insensitive' } },
+        { beneficiario: { contains: params.busca, mode: 'insensitive' } },
         { unidadeMedida: { contains: params.busca, mode: 'insensitive' } },
         {
           doador: {
@@ -102,15 +112,55 @@ export class DoacoesPrismaRepository implements IDoacoesRepository {
 
     const [data, total] = await Promise.all([
       this.prisma.doacao.findMany({
+        where,
         skip: params.skip,
         take: params.take,
-        where,
-        include: this.includeRelacoes,
         orderBy: [{ dataRecebimento: 'desc' }, { criadoEm: 'desc' }],
+        include: this.includeRelacoes,
       }),
       this.prisma.doacao.count({ where }),
     ]);
 
-    return { data: data as DoacaoComRelacoes[], total };
+    return {
+      data: data as DoacaoComRelacoes[],
+      total,
+    };
+  }
+
+  async buscarParaRelatorio(params: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    tipo?: TipoDoacao;
+    direcao?: DirecaoDoacao;
+  }): Promise<DoacaoComRelacoes[]> {
+    const where: Prisma.DoacaoWhereInput = {
+      ativo: true,
+    };
+
+    if (params.tipo) {
+      where.tipo = params.tipo;
+    }
+
+    if (params.direcao) {
+      where.direcao = params.direcao;
+    }
+
+    if (params.dataInicio || params.dataFim) {
+      where.dataRecebimento = {};
+      if (params.dataInicio) {
+        where.dataRecebimento.gte = params.dataInicio;
+      }
+      if (params.dataFim) {
+        where.dataRecebimento.lte = params.dataFim;
+      }
+    }
+
+    const data = await this.prisma.doacao.findMany({
+      where,
+      orderBy: [{ dataRecebimento: 'desc' }, { criadoEm: 'desc' }],
+      include: this.includeRelacoes,
+    });
+
+    return data as DoacaoComRelacoes[];
   }
 }

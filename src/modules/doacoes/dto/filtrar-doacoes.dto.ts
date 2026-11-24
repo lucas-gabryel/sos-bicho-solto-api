@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TipoDoacao } from '@prisma/client';
+import { DirecaoDoacao, TipoDoacao } from '@prisma/client';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginacaoDto } from '#src/common/dto/paginacao.dto';
 
@@ -13,6 +13,14 @@ export class FiltrarDoacoesDto extends PaginacaoDto {
   readonly tipo?: TipoDoacao;
 
   @ApiPropertyOptional({
+    enum: DirecaoDoacao,
+    description: 'Filtrar por direção da doação: RECEBIDA ou REALIZADA',
+  })
+  @IsOptional()
+  @IsEnum(DirecaoDoacao)
+  readonly direcao?: DirecaoDoacao;
+
+  @ApiPropertyOptional({
     description: 'Filtrar por ID do doador vinculado',
   })
   @IsOptional()
@@ -20,7 +28,7 @@ export class FiltrarDoacoesDto extends PaginacaoDto {
   readonly doadorId?: string;
 
   @ApiPropertyOptional({
-    description: 'Busca textual por descrição, unidade ou nome/documento do doador',
+    description: 'Busca textual por descrição, beneficiário, unidade ou nome/documento do doador',
   })
   @IsOptional()
   @IsString()

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TipoDoacao } from '@prisma/client';
+import { DirecaoDoacao, TipoDoacao } from '@prisma/client';
 import { DoacaoComRelacoes } from '../repositories/doacoes.repository.interface';
 
 export class DoadorResumoDto {
@@ -28,6 +28,12 @@ export class DoacaoResponseDto {
   @ApiProperty({ enum: TipoDoacao, example: TipoDoacao.DINHEIRO })
   readonly tipo!: TipoDoacao;
 
+  @ApiProperty({ enum: DirecaoDoacao, example: DirecaoDoacao.RECEBIDA })
+  readonly direcao!: DirecaoDoacao;
+
+  @ApiPropertyOptional({ example: 'Família acolhedora João e Maria' })
+  readonly beneficiario?: string | null;
+
   @ApiPropertyOptional({ example: 150.0 })
   readonly valor?: number | null;
 
@@ -48,6 +54,15 @@ export class DoacaoResponseDto {
 
   @ApiProperty({ example: false, description: 'Indica se a doação é anônima' })
   readonly anonima!: boolean;
+
+  @ApiPropertyOptional({ example: 'https://exemplo.com/comprovante.pdf' })
+  readonly documentoUrl?: string | null;
+
+  @ApiPropertyOptional({ example: 'recibo.pdf' })
+  readonly documentoNome?: string | null;
+
+  @ApiPropertyOptional({ example: 'application/pdf' })
+  readonly documentoTipo?: string | null;
 
   @ApiPropertyOptional({ type: DoadorResumoDto })
   readonly doador?: DoadorResumoDto | null;
@@ -71,13 +86,18 @@ export class DoacaoResponseDto {
     Object.assign(dto, {
       id: doacao.id,
       tipo: doacao.tipo,
+      direcao: doacao.direcao ?? DirecaoDoacao.RECEBIDA,
+      beneficiario: doacao.beneficiario ?? null,
       valor: doacao.valor !== null && doacao.valor !== undefined ? Number(doacao.valor) : null,
       quantidade: doacao.quantidade !== null && doacao.quantidade !== undefined ? Number(doacao.quantidade) : null,
       unidadeMedida: doacao.unidadeMedida ?? null,
       descricao: doacao.descricao ?? null,
       dataRecebimento: dataRecebimentoStr,
       doadorId: doacao.doadorId ?? null,
-      anonima: !doacao.doadorId,
+      anonima: !doacao.doadorId && (doacao.direcao ? doacao.direcao === DirecaoDoacao.RECEBIDA : true),
+      documentoUrl: doacao.documentoUrl ?? null,
+      documentoNome: doacao.documentoNome ?? null,
+      documentoTipo: doacao.documentoTipo ?? null,
       doador: doacao.doador
         ? {
             id: doacao.doador.id,

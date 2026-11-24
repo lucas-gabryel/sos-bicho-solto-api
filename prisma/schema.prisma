@@ -64,28 +64,28 @@ model Doador {
 }
 
 model Animal {
-  id              String        @id @default(uuid())
-  numeroRegistro  String        @unique @map("numero_registro")
+  id              String         @id @default(uuid())
+  numeroRegistro  String         @unique @map("numero_registro")
   nome            String
   especie         EspecieAnimal
   raca            String
   sexo            SexoAnimal
   porte           PorteAnimal?
   cor             String
-  pesoInicial     Decimal       @map("peso_inicial") @db.Decimal(5, 2)
-  pesoAtual       Decimal?      @map("peso_atual") @db.Decimal(5, 2)
-  dataNascimento  DateTime?     @map("data_nascimento") @db.Date
-  castrado        Boolean       @default(false)
-  vacinado        Boolean       @default(false)
-  localResgate    String        @map("local_resgate")
+  pesoInicial     Decimal        @map("peso_inicial") @db.Decimal(5, 2)
+  pesoAtual       Decimal?       @map("peso_atual") @db.Decimal(5, 2)
+  dataNascimento  DateTime?      @map("data_nascimento") @db.Date
+  castrado        Boolean        @default(false)
+  vacinado        Boolean        @default(false)
+  localResgate    String         @map("local_resgate")
   observacoes     String?
-  status          StatusAnimal  @default(ACOLHIMENTO)
-  tutorId         String?       @map("tutor_id")
-  ativo           Boolean       @default(true)
-  criadoEm        DateTime      @default(now()) @map("criado_em")
-  criadoPorId     String?       @map("criado_por_id")
-  modificadoEm    DateTime      @updatedAt @map("modificado_em")
-  modificadoPorId String?       @map("modificado_por_id")
+  status          StatusAnimal   @default(ACOLHIMENTO)
+  tutorId         String?        @map("tutor_id")
+  ativo           Boolean        @default(true)
+  criadoEm        DateTime       @default(now()) @map("criado_em")
+  criadoPorId     String?        @map("criado_por_id")
+  modificadoEm    DateTime       @updatedAt @map("modificado_em")
+  modificadoPorId String?        @map("modificado_por_id")
   adocoes         Adocao[]
   tutor           Tutor?         @relation(fields: [tutorId], references: [id])
   fotos           FotoAnimal[]
@@ -205,16 +205,26 @@ enum TipoDoacao {
   OUTRO
 }
 
+enum DirecaoDoacao {
+  RECEBIDA
+  REALIZADA
+}
+
 model Doacao {
   id              String                @id @default(uuid())
   tipo            TipoDoacao
+  direcao         DirecaoDoacao         @default(RECEBIDA)
   valor           Decimal?              @db.Decimal(10, 2)
   quantidade      Decimal?              @db.Decimal(10, 2)
   unidadeMedida   String?               @map("unidade_medida")
   descricao       String?
+  beneficiario    String?               @map("beneficiario")
   dataRecebimento DateTime              @map("data_recebimento") @db.Date
   doadorId        String?               @map("doador_id")
   registradoPorId String?               @map("registrado_por_id")
+  documentoUrl    String?               @map("documento_url")
+  documentoNome   String?               @map("documento_nome")
+  documentoTipo   String?               @map("documento_tipo")
   ativo           Boolean               @default(true)
   criadoEm        DateTime              @default(now()) @map("criado_em")
   modificadoEm    DateTime              @updatedAt @map("modificado_em")
@@ -223,6 +233,7 @@ model Doacao {
   movimentacoes   MovimentacaoEstoque[]
 
   @@index([tipo])
+  @@index([direcao])
   @@index([doadorId])
   @@index([dataRecebimento])
   @@map("doacoes")

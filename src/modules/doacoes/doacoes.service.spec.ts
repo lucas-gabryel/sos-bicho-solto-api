@@ -47,6 +47,8 @@ describe('DoacoesService', () => {
   const mockDoacaoCriada = {
     id: 'doacao-123',
     tipo: TipoDoacao.DINHEIRO,
+    direcao: 'RECEBIDA' as const,
+    beneficiario: null,
     valor: 150.0,
     quantidade: null,
     unidadeMedida: null,

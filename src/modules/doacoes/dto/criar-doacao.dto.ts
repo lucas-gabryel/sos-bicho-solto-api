@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TipoDoacao } from '@prisma/client';
+import { DirecaoDoacao, TipoDoacao } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -18,10 +18,52 @@ export class CriarDoacaoDto {
   @ApiProperty({
     enum: TipoDoacao,
     example: TipoDoacao.DINHEIRO,
-    description: 'Tipo de doação recebida',
+    description: 'Tipo de doação',
   })
   @IsEnum(TipoDoacao)
   readonly tipo!: TipoDoacao;
+
+  @ApiPropertyOptional({
+    enum: DirecaoDoacao,
+    example: DirecaoDoacao.RECEBIDA,
+    description: 'Direção da doação: RECEBIDA (pela ONG) ou REALIZADA (feita pela ONG)',
+    default: DirecaoDoacao.RECEBIDA,
+  })
+  @IsOptional()
+  @IsEnum(DirecaoDoacao)
+  readonly direcao?: DirecaoDoacao;
+
+  @ApiPropertyOptional({
+    example: 'Família acolhedora João e Maria',
+    description: 'Beneficiário ou destinatário da doação quando feita pela ONG',
+  })
+  @IsOptional()
+  @IsString()
+  readonly beneficiario?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://exemplo.com/comprovante.pdf',
+    description: 'URL do documento ou foto comprobatória',
+  })
+  @IsOptional()
+  @IsString()
+  readonly documentoUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'recibo_doacao.pdf',
+    description: 'Nome do arquivo comprobatório',
+  })
+  @IsOptional()
+  @IsString()
+  readonly documentoNome?: string;
+
+  @ApiPropertyOptional({
+    example: 'application/pdf',
+    description: 'MIME type do documento comprobatório',
+  })
+  @IsOptional()
+  @IsString()
+  readonly documentoTipo?: string;
 
   @ApiPropertyOptional({
     example: 150.0,
