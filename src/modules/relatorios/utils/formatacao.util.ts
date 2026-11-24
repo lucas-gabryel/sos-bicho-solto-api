@@ -1,10 +1,8 @@
 import {
   EspecieAnimal,
   MotivoSaidaAnimal,
-  PorteAnimal,
-  SexoAnimal,
   StatusAnimal,
-  TipoEventoAnimal,
+  TipoDoacao,
 } from '@prisma/client';
 
 export const FUSO_HORARIO = 'America/Maceio';
@@ -16,17 +14,6 @@ export const ESPECIE_LABEL: Record<EspecieAnimal, string> = {
   GATO: 'Gato',
 };
 
-export const SEXO_LABEL: Record<SexoAnimal, string> = {
-  MACHO: 'Macho',
-  FEMEA: 'Fêmea',
-};
-
-export const PORTE_LABEL: Record<PorteAnimal, string> = {
-  PEQUENO: 'pequeno',
-  MEDIO: 'médio',
-  GRANDE: 'grande',
-};
-
 export const STATUS_LABEL: Record<StatusAnimal, string> = {
   ACOLHIMENTO: 'Em acolhimento',
   ADOTADO: 'Adotado',
@@ -34,18 +21,18 @@ export const STATUS_LABEL: Record<StatusAnimal, string> = {
   OBITO: 'Óbito',
 };
 
-export const TIPO_EVENTO_LABEL: Record<TipoEventoAnimal, string> = {
-  ENTRADA: 'Entrada',
-  SAIDA: 'Saída',
-  MEDICO: 'Saúde',
-  FOTO: 'Foto',
-  OUTRO: 'Outro',
-};
-
 export const MOTIVO_SAIDA_LABEL: Record<MotivoSaidaAnimal, string> = {
   ADOCAO: 'Adoção',
   TRANSFERENCIA: 'Transferência',
   OBITO: 'Óbito',
+};
+
+export const TIPO_DOACAO_LABEL: Record<TipoDoacao, string> = {
+  DINHEIRO: 'Dinheiro',
+  RACAO: 'Ração',
+  MEDICAMENTO: 'Medicamento',
+  PRODUTO_LIMPEZA: 'Produto de limpeza',
+  OUTRO: 'Outro',
 };
 
 export function formatarData(data: Date | null | undefined): string {
@@ -94,23 +81,6 @@ export function formatarPercentual(parte: number, total: number): string {
   return `${Math.round((parte / total) * 100)}%`;
 }
 
-export function formatarPeso(peso: number): string {
-  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(peso)} kg`;
-}
-
-// Relatórios circulam fora do sistema (prestação de contas), então o CPF sai
-// mascarado, preservando só os dígitos centrais para conferência.
-export function mascararCpf(cpf: string): string {
-  const digitos = cpf.replace(/\D/g, '');
-  if (digitos.length !== 11) return '***';
-  return `***.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-**`;
-}
-
-export function juntarLista(itens: string[]): string {
-  if (itens.length <= 1) return itens.join('');
-  return `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`;
-}
-
 export interface Periodo {
   de?: Date;
   ate?: Date;
@@ -142,6 +112,119 @@ export function introducaoPeriodo(periodo: Periodo): string {
   return 'Em todo o histórico registrado';
 }
 
-export function temPeriodo(periodo: Periodo): boolean {
-  return Boolean(periodo.de || periodo.ate);
+export function formatarMoeda(valor: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(valor);
+}
+
+// Maceió não tem horário de verão: o dia local começa às 03:00 UTC.
+const DESLOCAMENTO_FUSO_HORAS = 3;
+
+const MESES = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+];
+
+export interface Intervalo {
+  rotulo: string;
+  inicio: Date;
+  fim: Date;
+}
+
+function partesLocais(data: Date) {
+  const local = new Date(data.getTime() - DESLOCAMENTO_FUSO_HORAS * 3600000);
+  return { ano: local.getUTCFullYear(), mes: local.getUTCMonth() };
+}
+
+function inicioDoMes(ano: number, mes: number): Date {
+  return new Date(Date.UTC(ano, mes, 1, DESLOCAMENTO_FUSO_HORAS));
+}
+
+// Divide o período em intervalos para os gráficos de evolução: semanas em
+// períodos curtos, meses até ~15 meses e anos acima disso. Sem início
+// informado, parte da data mais antiga dos dados.
+export function intervalosDoPeriodo(
+  periodo: Periodo,
+  datas: Date[],
+  agora: Date,
+): Intervalo[] {
+  const maisAntiga = datas.length
+    ? new Date(Math.min(...datas.map((d) => d.getTime())))
+    : agora;
+  const inicio = periodo.de ?? maisAntiga;
+  const fim = periodo.ate && periodo.ate < agora ? periodo.ate : agora;
+  if (fim <= inicio) {
+    return [{ rotulo: formatarData(inicio).slice(0, 5), inicio, fim: inicio }];
+  }
+  const dias = diasEntre(inicio, fim);
+  const intervalos: Intervalo[] = [];
+
+  if (dias <= 35) {
+    for (let t = inicio.getTime(); t <= fim.getTime(); t += 7 * UM_DIA_MS) {
+      const fimSemana = new Date(
+        Math.min(t + 7 * UM_DIA_MS - 1, fim.getTime()),
+      );
+      intervalos.push({
+        rotulo: formatarData(new Date(t)).slice(0, 5),
+        inicio: new Date(t),
+        fim: fimSemana,
+      });
+    }
+    return intervalos;
+  }
+
+  const primeiro = partesLocais(inicio);
+  const ultimo = partesLocais(fim);
+
+  if (dias <= 460) {
+    for (
+      let ano = primeiro.ano, mes = primeiro.mes;
+      ano < ultimo.ano || (ano === ultimo.ano && mes <= ultimo.mes);
+      mes === 11 ? ((mes = 0), ano++) : mes++
+    ) {
+      intervalos.push({
+        rotulo: `${MESES[mes]}/${String(ano).slice(2)}`,
+        inicio: inicioDoMes(ano, mes),
+        fim: new Date(inicioDoMes(ano, mes + 1).getTime() - 1),
+      });
+    }
+    return intervalos;
+  }
+
+  for (let ano = primeiro.ano; ano <= ultimo.ano; ano++) {
+    intervalos.push({
+      rotulo: String(ano),
+      inicio: inicioDoMes(ano, 0),
+      fim: new Date(inicioDoMes(ano + 1, 0).getTime() - 1),
+    });
+  }
+  return intervalos;
+}
+
+export function somarPorIntervalo(
+  intervalos: Intervalo[],
+  itens: { data: Date | null; valor?: number }[],
+): number[] {
+  return intervalos.map((intervalo) =>
+    itens
+      .filter(
+        (item) =>
+          item.data &&
+          item.data >= intervalo.inicio &&
+          item.data <= intervalo.fim,
+      )
+      .reduce((soma, item) => soma + (item.valor ?? 1), 0),
+  );
 }

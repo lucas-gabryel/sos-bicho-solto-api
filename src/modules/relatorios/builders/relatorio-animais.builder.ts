@@ -1,15 +1,11 @@
 import {
   EspecieAnimal,
   MotivoSaidaAnimal,
-  SexoAnimal,
   StatusAnimal,
   TipoEventoAnimal,
 } from '@prisma/client';
-import {
-  DocumentoRelatorio,
-  FichaRelatorio,
-  SecaoRelatorio,
-} from '../pdf/documento-relatorio';
+import { DocumentoRelatorio } from '../pdf/documento-relatorio';
+import { PALETA } from '../pdf/graficos';
 import {
   AdocaoRelatorio,
   AnimalRelatorio,
@@ -17,29 +13,24 @@ import {
 import {
   ESPECIE_LABEL,
   MOTIVO_SAIDA_LABEL,
-  PORTE_LABEL,
   Periodo,
-  SEXO_LABEL,
   STATUS_LABEL,
-  TIPO_EVENTO_LABEL,
   descreverPeriodo,
   diasEntre,
   formatarData,
   formatarDuracao,
   formatarPercentual,
-  formatarPeso,
   introducaoPeriodo,
-  juntarLista,
+  intervalosDoPeriodo,
   media,
   noPeriodo,
   plural,
-  temPeriodo,
+  somarPorIntervalo,
 } from '../utils/formatacao.util';
 
 export const LIMITE_LONGA_PERMANENCIA_DIAS = 90;
 
 export interface FiltrosRelatorioAnimais extends Periodo {
-  status?: StatusAnimal;
   especie?: EspecieAnimal;
 }
 
@@ -47,6 +38,13 @@ export interface MetadadosRelatorio {
   geradoEm: Date;
   geradoPor: string;
 }
+
+export const COR_STATUS: Record<StatusAnimal, string> = {
+  ACOLHIMENTO: PALETA.ambar,
+  ADOTADO: PALETA.verde,
+  TRANSFERIDO: PALETA.azul,
+  OBITO: PALETA.cinza,
+};
 
 // Início do acolhimento vigente em `referencia`: a última entrada (resgate ou
 // retorno por devolução) até aquela data. Sem eventos, vale o cadastro.
@@ -92,128 +90,8 @@ function descreverEspecies(especies: EspecieAnimal[]): string {
   return `${plural(caes, 'cão', 'cães')} e ${plural(gatos, 'gato', 'gatos')}`;
 }
 
-function teveAtividade(animal: AnimalRelatorio, periodo: Periodo): boolean {
-  if (!temPeriodo(periodo)) return true;
-  return (
-    noPeriodo(animal.criadoEm, periodo) ||
-    animal.eventos.some((e) => noPeriodo(e.dataEvento, periodo)) ||
-    animal.adocoes.some(
-      (a) =>
-        noPeriodo(a.dataAdocao, periodo) || noPeriodo(a.devolvidoEm, periodo),
-    )
-  );
-}
-
-function sufixoGenero(sexo: SexoAnimal): string {
-  return sexo === SexoAnimal.FEMEA ? 'a' : 'o';
-}
-
 function simNao(valor: boolean): string {
   return valor ? 'sim' : 'não';
-}
-
-function descreverSituacao(animal: AnimalRelatorio, agora: Date): string {
-  const o = sufixoGenero(animal.sexo);
-
-  if (animal.status === StatusAnimal.ACOLHIMENTO) {
-    const desde = inicioDoAcolhimento(
-      entradasDoAnimal(animal),
-      animal.criadoEm,
-      agora,
-    );
-    return `Encontra-se em acolhimento há ${formatarDuracao(diasEntre(desde, agora))} (desde ${formatarData(desde)}).`;
-  }
-
-  if (animal.status === StatusAnimal.ADOTADO) {
-    const ativa = animal.adocoes.find((a) => !a.devolvidoEm);
-    if (!ativa) {
-      return animal.tutor
-        ? `Adotad${o} por ${animal.tutor.nome} (cadastro #${animal.tutor.codigo}).`
-        : `Adotad${o}.`;
-    }
-    return (
-      `Adotad${o} em ${formatarData(ativa.dataAdocao)} por ${ativa.tutor.nome} ` +
-      `(cadastro #${ativa.tutor.codigo}), após ${formatarDuracao(diasAteAdocao(ativa))} em acolhimento; ` +
-      `está com a família há ${formatarDuracao(diasEntre(ativa.dataAdocao, agora))}.`
-    );
-  }
-
-  const motivo =
-    animal.status === StatusAnimal.OBITO
-      ? MotivoSaidaAnimal.OBITO
-      : MotivoSaidaAnimal.TRANSFERENCIA;
-  const saida = [...animal.eventos]
-    .reverse()
-    .find((e) => e.tipo === TipoEventoAnimal.SAIDA && e.motivoSaida === motivo);
-  const quando = saida ? ` em ${formatarData(saida.dataEvento)}` : '';
-
-  return animal.status === StatusAnimal.OBITO
-    ? `Teve óbito registrado${quando}.`
-    : `Saiu da ONG por transferência${quando}.`;
-}
-
-function montarFicha(animal: AnimalRelatorio, agora: Date): FichaRelatorio {
-  const o = sufixoGenero(animal.sexo);
-  const caracteristicas = [
-    `${ESPECIE_LABEL[animal.especie]} ${SEXO_LABEL[animal.sexo].toLowerCase()}`,
-    `raça ${animal.raca}`,
-    ...(animal.porte ? [`porte ${PORTE_LABEL[animal.porte]}`] : []),
-    `pelagem ${animal.cor.toLowerCase()}`,
-    ...(animal.dataNascimento
-      ? [
-          `com cerca de ${formatarDuracao(diasEntre(animal.dataNascimento, agora))} de idade`,
-        ]
-      : []),
-  ];
-
-  const apresentacao =
-    `${juntarLista(caracteristicas)}. Resgatad${o} em ${animal.localResgate} ` +
-    `e registrad${o} na ONG em ${formatarData(animal.criadoEm)}. ` +
-    descreverSituacao(animal, agora);
-
-  let peso = `Peso inicial de ${formatarPeso(animal.pesoInicial)}`;
-  if (animal.pesoAtual !== null) {
-    const variacao = animal.pesoAtual - animal.pesoInicial;
-    const sinal = variacao > 0 ? '+' : variacao < 0 ? '-' : '';
-    peso += `; peso atual de ${formatarPeso(animal.pesoAtual)} (variação de ${sinal}${formatarPeso(Math.abs(variacao))})`;
-  }
-  const saude = `Castrad${o}: ${simNao(animal.castrado)}. Vacinad${o}: ${simNao(animal.vacinado)}. ${peso}.`;
-
-  const devolucoes = animal.adocoes.filter((a) => a.devolvidoEm).length;
-  const registrosSaude = animal.eventos.filter(
-    (e) => e.tipo === TipoEventoAnimal.MEDICO,
-  ).length;
-  const historico =
-    `Histórico: ${plural(animal.adocoes.length, 'adoção', 'adoções')}, ` +
-    `${plural(devolucoes, 'devolução', 'devoluções')} e ` +
-    `${plural(registrosSaude, 'registro de saúde', 'registros de saúde')}.`;
-
-  const paragrafos = [apresentacao, saude, historico];
-  if (animal.observacoes?.trim()) {
-    paragrafos.push(`Observações: ${animal.observacoes.trim()}`);
-  }
-
-  return {
-    titulo: `${animal.nome} · Registro ${animal.numeroRegistro}`,
-    subtitulo: `${ESPECIE_LABEL[animal.especie]} · ${SEXO_LABEL[animal.sexo]} · ${animal.raca} · ${STATUS_LABEL[animal.status]}`,
-    paragrafos,
-    tabelas: [
-      {
-        titulo: 'Linha do tempo',
-        colunas: ['Data', 'Tipo', 'Descrição', 'Registrado por'],
-        larguras: [52, 70, '*', 80],
-        linhas: animal.eventos.map((e) => [
-          formatarData(e.dataEvento),
-          e.motivoSaida
-            ? `${TIPO_EVENTO_LABEL[e.tipo]} (${MOTIVO_SAIDA_LABEL[e.motivoSaida]})`
-            : TIPO_EVENTO_LABEL[e.tipo],
-          e.descricao,
-          e.registradoPor ?? '-',
-        ]),
-        vazio: 'Nenhum evento registrado para este animal.',
-      },
-    ],
-  };
 }
 
 export function montarRelatorioAnimais(
@@ -271,6 +149,7 @@ export function montarRelatorioAnimais(
       );
       return { animal, desde, dias: diasEntre(desde, agora) };
     });
+  const totalEmAcolhimento = emAcolhimento.length;
   const mediaPermanencia = media(emAcolhimento.map((a) => a.dias));
   const castrados = emAcolhimento.filter((a) => a.animal.castrado).length;
   const vacinados = emAcolhimento.filter((a) => a.animal.vacinado).length;
@@ -283,8 +162,6 @@ export function montarRelatorioAnimais(
   const comTutor = animais.filter(
     (a) => a.status === StatusAnimal.ADOTADO,
   ).length;
-
-  const totalEmAcolhimento = emAcolhimento.length;
   const especiesAcolhidas = emAcolhimento.map((a) => a.animal.especie);
 
   // Resumo descritivo
@@ -331,7 +208,17 @@ export function montarRelatorioAnimais(
   }
   resumo.push(adocaoTexto);
 
-  // Seções
+  // Evolução no período
+  const intervalos = intervalosDoPeriodo(
+    periodo,
+    [
+      ...animais.map((a) => a.criadoEm),
+      ...todasAdocoes.map((a) => a.dataAdocao),
+    ],
+    agora,
+  );
+
+  // Situação atual por espécie
   const linhasSituacao = Object.values(StatusAnimal).map((status) => {
     const { caes, gatos } = contarPorEspecie(
       animais.filter((a) => a.status === status).map((a) => a.especie),
@@ -346,190 +233,20 @@ export function montarRelatorioAnimais(
     `${animais.length}`,
   ]);
 
-  const secoes: SecaoRelatorio[] = [
-    {
-      titulo: 'Situação atual dos animais',
-      descricao:
-        'Posição na data de emissão, considerando todos os animais ativos no cadastro.',
-      tabelas: [
-        {
-          colunas: ['Situação', 'Cães', 'Gatos', 'Total'],
-          larguras: ['*', 60, 60, 60],
-          linhas: linhasSituacao,
-          vazio: 'Nenhum animal cadastrado.',
-        },
-        {
-          titulo: 'Cuidados veterinários dos animais em acolhimento',
-          colunas: ['Indicador', 'Animais', 'Percentual'],
-          larguras: ['*', 60, 70],
-          linhas:
-            totalEmAcolhimento === 0
-              ? []
-              : [
-                  [
-                    'Castrados',
-                    `${castrados}`,
-                    formatarPercentual(castrados, totalEmAcolhimento),
-                  ],
-                  [
-                    'Vacinados',
-                    `${vacinados}`,
-                    formatarPercentual(vacinados, totalEmAcolhimento),
-                  ],
-                  [
-                    'Castrados e vacinados',
-                    `${castradosEVacinados}`,
-                    formatarPercentual(castradosEVacinados, totalEmAcolhimento),
-                  ],
-                  [
-                    'Aguardando castração',
-                    `${totalEmAcolhimento - castrados}`,
-                    formatarPercentual(
-                      totalEmAcolhimento - castrados,
-                      totalEmAcolhimento,
-                    ),
-                  ],
-                  [
-                    'Aguardando vacinação',
-                    `${totalEmAcolhimento - vacinados}`,
-                    formatarPercentual(
-                      totalEmAcolhimento - vacinados,
-                      totalEmAcolhimento,
-                    ),
-                  ],
-                ],
-          vazio: 'Nenhum animal em acolhimento na data de emissão.',
-        },
-      ],
-    },
-    {
-      titulo: 'Movimentações do período',
-      descricao: `Período: ${descreverPeriodo(periodo)}.`,
-      tabelas: [
-        {
-          titulo: 'Entradas (resgates)',
-          colunas: [
-            'Data',
-            'Registro',
-            'Animal',
-            'Espécie',
-            'Local de resgate',
-          ],
-          larguras: [52, 62, 80, 40, '*'],
-          linhas: entradas.map((a) => [
-            formatarData(a.criadoEm),
-            a.numeroRegistro,
-            a.nome,
-            ESPECIE_LABEL[a.especie],
-            a.localResgate,
-          ]),
-          vazio: 'Nenhuma entrada no período.',
-        },
-        {
-          titulo: 'Adoções',
-          colunas: [
-            'Data',
-            'Animal',
-            'Tutor',
-            'Protetor responsável',
-            'Tempo em acolhimento',
-          ],
-          larguras: [52, 80, '*', 90, 70],
-          linhas: adocoes.map((a) => [
-            formatarData(a.dataAdocao),
-            `${a.animal.nome} (${a.animal.numeroRegistro})`,
-            `${a.tutor.nome} (#${a.tutor.codigo})`,
-            a.protetor,
-            formatarDuracao(diasAteAdocao(a)),
-          ]),
-          vazio: 'Nenhuma adoção no período.',
-        },
-        {
-          titulo: 'Devoluções',
-          colunas: [
-            'Data',
-            'Animal',
-            'Tutor',
-            'Tempo com o tutor',
-            'Observações',
-          ],
-          larguras: [52, 80, 100, 60, '*'],
-          linhas: devolucoes.map((a) => [
-            formatarData(a.devolvidoEm),
-            `${a.animal.nome} (${a.animal.numeroRegistro})`,
-            `${a.tutor.nome} (#${a.tutor.codigo})`,
-            formatarDuracao(diasEntre(a.dataAdocao, a.devolvidoEm ?? agora)),
-            a.observacoesDevolucao?.trim() || '-',
-          ]),
-          vazio: 'Nenhuma devolução no período.',
-        },
-        {
-          titulo: 'Transferências e óbitos',
-          colunas: ['Data', 'Animal', 'Motivo', 'Descrição'],
-          larguras: [52, 90, 70, '*'],
-          linhas: saidas.map(({ animal, evento }) => [
-            formatarData(evento.dataEvento),
-            `${animal.nome} (${animal.numeroRegistro})`,
-            evento.motivoSaida ? MOTIVO_SAIDA_LABEL[evento.motivoSaida] : '-',
-            evento.descricao,
-          ]),
-          vazio: 'Nenhuma transferência ou óbito no período.',
-        },
-      ],
-    },
-    {
-      titulo: `Animais há mais de ${LIMITE_LONGA_PERMANENCIA_DIAS} dias em acolhimento`,
-      descricao:
-        'Animais que estão há mais tempo aguardando um lar e devem ter prioridade nas ações de divulgação e feiras de adoção.',
-      tabelas: [
-        {
-          colunas: [
-            'Registro',
-            'Animal',
-            'Espécie',
-            'Desde',
-            'Tempo',
-            'Castrado',
-            'Vacinado',
-          ],
-          larguras: [62, '*', 40, 52, 55, 45, 45],
-          linhas: longaPermanencia.map(({ animal, desde, dias }) => [
-            animal.numeroRegistro,
-            animal.nome,
-            ESPECIE_LABEL[animal.especie],
-            formatarData(desde),
-            formatarDuracao(dias),
-            simNao(animal.castrado),
-            simNao(animal.vacinado),
-          ]),
-          vazio: `Nenhum animal em acolhimento há mais de ${LIMITE_LONGA_PERMANENCIA_DIAS} dias.`,
-        },
-      ],
-    },
-  ];
-
-  const fichas = animais
-    .filter((a) => !filtros.status || a.status === filtros.status)
-    .filter((a) => teveAtividade(a, periodo))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    .map((a) => montarFicha(a, agora));
+  const percentualAcolhidos = (parte: number) =>
+    totalEmAcolhimento === 0 ? 0 : parte / totalEmAcolhimento;
 
   return {
-    titulo: 'Relatório Histórico de Animais',
+    titulo: 'Relatório de Animais',
     finalidade:
-      'Consolida as entradas, adoções, devoluções, saídas e cuidados de saúde dos animais acolhidos pela ONG, ' +
-      'com a ficha histórica de cada animal, para apoiar a gestão e a prestação de contas à sociedade.',
+      'Entradas, adoções, devoluções, saídas e cuidados de saúde dos animais acolhidos pela ONG no período.',
     geradoEm: meta.geradoEm,
     geradoPor: meta.geradoPor,
+    periodo: descreverPeriodo(periodo),
     filtros: [
-      { rotulo: 'Período', valor: descreverPeriodo(periodo) },
       {
         rotulo: 'Espécie',
         valor: filtros.especie ? ESPECIE_LABEL[filtros.especie] : 'Todas',
-      },
-      {
-        rotulo: 'Situação (fichas)',
-        valor: filtros.status ? STATUS_LABEL[filtros.status] : 'Todas',
       },
     ],
     indicadores: [
@@ -571,9 +288,9 @@ export function montarRelatorioAnimais(
         detalhe: 'dos animais em acolhimento',
       },
       {
-        rotulo: 'Castrados / vacinados',
-        valor: `${formatarPercentual(castrados, totalEmAcolhimento)} / ${formatarPercentual(vacinados, totalEmAcolhimento)}`,
-        detalhe: 'dos animais em acolhimento',
+        rotulo: 'Com tutores hoje',
+        valor: `${comTutor}`,
+        detalhe: 'animais adotados',
       },
       {
         rotulo: 'Registros de saúde',
@@ -582,14 +299,204 @@ export function montarRelatorioAnimais(
       },
     ],
     resumo,
-    secoes,
-    fichas: {
-      titulo: 'Fichas históricas dos animais',
-      descricao: temPeriodo(periodo)
-        ? 'Animais com alguma movimentação no período (entrada, adoção, devolução ou atualização de histórico), com a linha do tempo completa.'
-        : 'Todos os animais cadastrados, com a linha do tempo completa.',
-      itens: fichas,
-      vazio: 'Nenhum animal atende aos filtros informados.',
-    },
+    secoes: [
+      {
+        titulo: 'Evolução no período',
+        descricao: `Entradas, adoções e devoluções ao longo de ${descreverPeriodo(periodo).toLowerCase()}.`,
+        graficos: [
+          {
+            tipo: 'colunas',
+            titulo: 'Movimentação de animais',
+            categorias: intervalos.map((i) => i.rotulo),
+            series: [
+              {
+                nome: 'Entradas',
+                cor: PALETA.laranja,
+                valores: somarPorIntervalo(
+                  intervalos,
+                  entradas.map((a) => ({ data: a.criadoEm })),
+                ),
+              },
+              {
+                nome: 'Adoções',
+                cor: PALETA.verde,
+                valores: somarPorIntervalo(
+                  intervalos,
+                  adocoes.map((a) => ({ data: a.dataAdocao })),
+                ),
+              },
+              {
+                nome: 'Devoluções',
+                cor: PALETA.cinza,
+                valores: somarPorIntervalo(
+                  intervalos,
+                  devolucoes.map((a) => ({ data: a.devolvidoEm })),
+                ),
+              },
+            ],
+          },
+        ],
+      },
+      {
+        titulo: 'Situação atual',
+        descricao:
+          'Posição na data de emissão, considerando todos os animais ativos no cadastro.',
+        graficos: [
+          {
+            tipo: 'rosca',
+            titulo: 'Animais por situação',
+            centro: { valor: `${animais.length}`, rotulo: 'animais' },
+            fatias: Object.values(StatusAnimal).map((status) => ({
+              rotulo: STATUS_LABEL[status],
+              valor: animais.filter((a) => a.status === status).length,
+              cor: COR_STATUS[status],
+            })),
+          },
+          {
+            tipo: 'progresso',
+            titulo: 'Cuidados dos animais em acolhimento',
+            vazio: 'Nenhum animal em acolhimento na data de emissão.',
+            itens:
+              totalEmAcolhimento === 0
+                ? []
+                : [
+                    {
+                      rotulo: 'Castrados',
+                      percentual: percentualAcolhidos(castrados),
+                      texto: `${castrados} de ${totalEmAcolhimento} · ${formatarPercentual(castrados, totalEmAcolhimento)}`,
+                    },
+                    {
+                      rotulo: 'Vacinados',
+                      percentual: percentualAcolhidos(vacinados),
+                      texto: `${vacinados} de ${totalEmAcolhimento} · ${formatarPercentual(vacinados, totalEmAcolhimento)}`,
+                    },
+                    {
+                      rotulo: 'Castrados e vacinados',
+                      percentual: percentualAcolhidos(castradosEVacinados),
+                      texto: `${castradosEVacinados} de ${totalEmAcolhimento} · ${formatarPercentual(castradosEVacinados, totalEmAcolhimento)}`,
+                    },
+                  ],
+          },
+        ],
+        tabelas: [
+          {
+            titulo: 'Animais por situação e espécie',
+            colunas: ['Situação', 'Cães', 'Gatos', 'Total'],
+            larguras: ['*', 70, 70, 70],
+            linhas: linhasSituacao,
+            vazio: 'Nenhum animal cadastrado.',
+          },
+        ],
+      },
+      {
+        titulo: 'Movimentações do período',
+        descricao: `Período: ${descreverPeriodo(periodo)}.`,
+        tabelas: [
+          {
+            titulo: 'Entradas (resgates)',
+            colunas: [
+              'Data',
+              'Registro',
+              'Animal',
+              'Espécie',
+              'Local de resgate',
+            ],
+            larguras: [52, 62, 80, 40, '*'],
+            linhas: entradas.map((a) => [
+              formatarData(a.criadoEm),
+              a.numeroRegistro,
+              a.nome,
+              ESPECIE_LABEL[a.especie],
+              a.localResgate,
+            ]),
+            vazio: 'Nenhuma entrada no período.',
+          },
+          {
+            titulo: 'Adoções',
+            colunas: [
+              'Data',
+              'Animal',
+              'Tutor',
+              'Protetor responsável',
+              'Tempo em acolhimento',
+            ],
+            larguras: [52, 80, '*', 90, 70],
+            linhas: adocoes.map((a) => [
+              formatarData(a.dataAdocao),
+              `${a.animal.nome} (${a.animal.numeroRegistro})`,
+              `${a.tutor.nome} (#${a.tutor.codigo})`,
+              a.protetor,
+              formatarDuracao(diasAteAdocao(a)),
+            ]),
+            vazio: 'Nenhuma adoção no período.',
+          },
+          {
+            titulo: 'Devoluções',
+            colunas: [
+              'Data',
+              'Animal',
+              'Tutor',
+              'Tempo com o tutor',
+              'Observações',
+            ],
+            larguras: [52, 80, 100, 60, '*'],
+            linhas: devolucoes.map((a) => [
+              formatarData(a.devolvidoEm),
+              `${a.animal.nome} (${a.animal.numeroRegistro})`,
+              `${a.tutor.nome} (#${a.tutor.codigo})`,
+              formatarDuracao(diasEntre(a.dataAdocao, a.devolvidoEm ?? agora)),
+              a.observacoesDevolucao?.trim() || '-',
+            ]),
+            vazio: 'Nenhuma devolução no período.',
+          },
+          {
+            titulo: 'Transferências e óbitos',
+            colunas: ['Data', 'Animal', 'Motivo', 'Descrição'],
+            larguras: [52, 90, 70, '*'],
+            linhas: saidas.map(({ animal, evento }) => [
+              formatarData(evento.dataEvento),
+              `${animal.nome} (${animal.numeroRegistro})`,
+              evento.motivoSaida ? MOTIVO_SAIDA_LABEL[evento.motivoSaida] : '-',
+              evento.descricao,
+            ]),
+            vazio: 'Nenhuma transferência ou óbito no período.',
+          },
+        ],
+      },
+      {
+        titulo: 'Pontos de atenção',
+        descricao: `Animais há mais de ${LIMITE_LONGA_PERMANENCIA_DIAS} dias em acolhimento: devem ter prioridade nas ações de divulgação e feiras de adoção.`,
+        tabelas: [
+          {
+            colunas: [
+              'Registro',
+              'Animal',
+              'Espécie',
+              'Desde',
+              'Tempo',
+              'Castrado',
+              'Vacinado',
+            ],
+            larguras: [62, '*', 40, 52, 55, 45, 45],
+            linhas: longaPermanencia.map(({ animal, desde, dias }) => [
+              animal.numeroRegistro,
+              animal.nome,
+              ESPECIE_LABEL[animal.especie],
+              formatarData(desde),
+              formatarDuracao(dias),
+              simNao(animal.castrado),
+              simNao(animal.vacinado),
+            ]),
+            vazio: `Nenhum animal em acolhimento há mais de ${LIMITE_LONGA_PERMANENCIA_DIAS} dias.`,
+          },
+        ],
+      },
+    ],
+    notas: [
+      'Movimentações (entradas, adoções, devoluções, transferências, óbitos e registros de saúde) consideram o período analisado; a situação atual refere-se à data de emissão.',
+      'Entrada é a data de cadastro do animal resgatado na ONG; retornos por devolução aparecem como devoluções.',
+      'O tempo em acolhimento é contado a partir da última entrada do animal (resgate ou retorno por devolução).',
+      'Animais excluídos do cadastro não são considerados.',
+    ],
   };
 }

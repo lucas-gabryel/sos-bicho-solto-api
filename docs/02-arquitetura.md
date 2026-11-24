@@ -104,7 +104,7 @@ constructor(
 | `AnimaisModule`   | CRUD de animais + fotos (status muda via adoção)         |
 | `AdocoesModule`   | Processo de adoção + histórico de status                 |
 | `DashboardModule` | Consultas agregadas (métricas)                           |
-| `RelatoriosModule` | Relatórios históricos em PDF (pdfmake) — somente ADMIN |
+| `RelatoriosModule` | Relatórios gerenciais em PDF (pdfmake) — somente ADMIN |
 
 ## Tratamento de erros
 

@@ -1,8 +1,10 @@
 import { EspecieAnimal } from '@prisma/client';
 import {
-  DocumentoRelatorio,
-  TabelaRelatorio,
-} from '../pdf/documento-relatorio';
+  SituacaoAcolhedor,
+  calcularSituacao,
+} from '#src/modules/tutores/enums/situacao-acolhedor.enum';
+import { DocumentoRelatorio } from '../pdf/documento-relatorio';
+import { PALETA } from '../pdf/graficos';
 import {
   AcolhedorRelatorio,
   AdocaoRelatorio,
@@ -16,79 +18,22 @@ import {
   formatarData,
   formatarDuracao,
   introducaoPeriodo,
-  juntarLista,
-  mascararCpf,
+  intervalosDoPeriodo,
   media,
   noPeriodo,
   plural,
-  temPeriodo,
+  somarPorIntervalo,
 } from '../utils/formatacao.util';
 import { MetadadosRelatorio } from './relatorio-animais.builder';
 
 export const LIMITE_ESPERA_DIAS = 90;
 
-const REGRA_SITUACAO =
-  'Tutores são acolhedores com ao menos um animal vinculado; adotantes são acolhedores cadastrados sem animal vinculado no momento.';
-
-function teveAtividade(acolhedor: AcolhedorRelatorio, periodo: Periodo) {
-  if (!temPeriodo(periodo)) return true;
-  return (
-    noPeriodo(acolhedor.criadoEm, periodo) ||
-    acolhedor.adocoes.some(
-      (a) =>
-        noPeriodo(a.dataAdocao, periodo) || noPeriodo(a.devolvidoEm, periodo),
-    )
-  );
+function situacaoDe(acolhedor: AcolhedorRelatorio): SituacaoAcolhedor {
+  return calcularSituacao(acolhedor.animaisVinculados.length);
 }
 
 function ordenarPorNome(acolhedores: AcolhedorRelatorio[]) {
   return [...acolhedores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-}
-
-function descreverContato(acolhedor: AcolhedorRelatorio): string {
-  return (
-    `CPF ${mascararCpf(acolhedor.cpf)}. Telefone ${acolhedor.telefone} · E-mail ${acolhedor.email}. ` +
-    `Endereço: ${acolhedor.endereco}.`
-  );
-}
-
-function tabelaHistoricoAdocoes(
-  adocoes: AdocaoRelatorio[],
-  agora: Date,
-): TabelaRelatorio {
-  return {
-    titulo: 'Histórico de adoções',
-    colunas: [
-      'Animal',
-      'Adoção',
-      'Devolução',
-      'Tempo com o tutor',
-      'Protetor',
-      'Observações',
-    ],
-    larguras: [80, 52, 52, 55, 70, '*'],
-    linhas: adocoes.map((a) => [
-      `${a.animal.nome} (${a.animal.numeroRegistro})`,
-      formatarData(a.dataAdocao),
-      a.devolvidoEm ? formatarData(a.devolvidoEm) : 'Vigente',
-      formatarDuracao(diasEntre(a.dataAdocao, a.devolvidoEm ?? agora)),
-      a.protetor,
-      [a.observacoes, a.observacoesDevolucao]
-        .map((o) => o?.trim())
-        .filter(Boolean)
-        .join(' | ') || '-',
-    ]),
-    vazio: 'Nenhuma adoção registrada.',
-  };
-}
-
-function descreverHistorico(adocoes: AdocaoRelatorio[]): string {
-  const devolvidas = adocoes.filter((a) => a.devolvidoEm).length;
-  if (adocoes.length === 0) return 'Ainda não realizou adoções pela ONG.';
-  if (devolvidas === 0) {
-    return `No total, realizou ${plural(adocoes.length, 'adoção', 'adoções')} pela ONG, sem nenhuma devolução.`;
-  }
-  return `No total, realizou ${plural(adocoes.length, 'adoção', 'adoções')} pela ONG, das quais ${plural(devolvidas, 'foi devolvida', 'foram devolvidas')}.`;
 }
 
 function contarEspecies(especies: EspecieAnimal[]): string {
@@ -96,24 +41,73 @@ function contarEspecies(especies: EspecieAnimal[]): string {
   return `${plural(caes, 'cão', 'cães')} e ${plural(especies.length - caes, 'gato', 'gatos')}`;
 }
 
-export function montarRelatorioTutores(
-  tutores: AcolhedorRelatorio[],
+function faixaDeGuarda(dias: number): string {
+  if (dias < 90) return 'Até 3 meses';
+  if (dias < 180) return 'De 3 a 6 meses';
+  if (dias < 365) return 'De 6 meses a 1 ano';
+  return 'Mais de 1 ano';
+}
+
+const FAIXAS_GUARDA = [
+  'Até 3 meses',
+  'De 3 a 6 meses',
+  'De 6 meses a 1 ano',
+  'Mais de 1 ano',
+];
+
+export function montarRelatorioAcolhedores(
+  acolhedores: AcolhedorRelatorio[],
   periodo: Periodo,
   meta: MetadadosRelatorio,
 ): DocumentoRelatorio {
   const agora = meta.geradoEm;
-  const todasAdocoes = tutores.flatMap((t) => t.adocoes);
-  const guardasAtivas = todasAdocoes.filter((a) => !a.devolvidoEm);
-  const animaisSobGuarda = tutores.flatMap((t) =>
-    t.animaisVinculados.map((animal) => ({ tutor: t, animal })),
+  const tutores = acolhedores.filter(
+    (a) => situacaoDe(a) === SituacaoAcolhedor.TUTOR,
   );
+  const adotantes = acolhedores.filter(
+    (a) => situacaoDe(a) === SituacaoAcolhedor.ADOTANTE,
+  );
+  const todasAdocoes = acolhedores.flatMap((a) => a.adocoes);
+
+  // Tutores e guardas vigentes
+  const guardasAtivas = tutores
+    .flatMap((t) => t.adocoes)
+    .filter((a) => !a.devolvidoEm);
+  const animaisSobGuarda = tutores.flatMap((tutor) =>
+    tutor.animaisVinculados.map((animal) => ({
+      tutor,
+      animal,
+      guarda: guardasAtivas.find(
+        (a) => a.animal.numeroRegistro === animal.numeroRegistro,
+      ),
+    })),
+  );
+  const diasDeGuarda = guardasAtivas.map((a) => diasEntre(a.dataAdocao, agora));
+  const mediaGuarda = media(diasDeGuarda);
   const comMaisDeUm = tutores.filter(
     (t) => t.animaisVinculados.length > 1,
   ).length;
-  const diasDeGuarda = guardasAtivas.map((a) => diasEntre(a.dataAdocao, agora));
-  const mediaGuarda = media(diasDeGuarda);
-  const guardasMaisDeUmAno = diasDeGuarda.filter((d) => d >= 365).length;
 
+  // Adotantes (fila de espera e histórico)
+  const aguardando = adotantes
+    .filter((a) => a.adocoes.length === 0)
+    .map((adotante) => ({
+      adotante,
+      dias: diasEntre(adotante.criadoEm, agora),
+    }))
+    .sort((x, y) => y.dias - x.dias);
+  const comDevolucao = adotantes.filter((a) =>
+    a.adocoes.some((ad) => ad.devolvidoEm),
+  );
+  const mediaEspera = media(aguardando.map((a) => a.dias));
+  const esperaLonga = aguardando.filter(
+    (a) => a.dias >= LIMITE_ESPERA_DIAS,
+  ).length;
+
+  // Período
+  const novosCadastros = acolhedores.filter((a) =>
+    noPeriodo(a.criadoEm, periodo),
+  );
   const adocoesPeriodo = todasAdocoes.filter((a) =>
     noPeriodo(a.dataAdocao, periodo),
   );
@@ -125,39 +119,48 @@ export function montarRelatorioTutores(
     return primeira && noPeriodo(primeira.dataAdocao, periodo);
   }).length;
 
-  const especiesSobGuarda = animaisSobGuarda.map((g) => g.animal.especie);
-
+  // Resumo
   const resumo: string[] = [];
-  if (tutores.length === 0) {
-    resumo.push('Na data de emissão, não há tutores com animais vinculados.');
+  if (acolhedores.length === 0) {
+    resumo.push('Na data de emissão, não há acolhedores cadastrados.');
   } else {
     let atual =
-      `Na data de emissão, a ONG conta com ${plural(tutores.length, 'tutor ativo', 'tutores ativos')}, ` +
-      `responsáveis por ${plural(animaisSobGuarda.length, 'animal resgatado', 'animais resgatados')} ` +
-      `(${contarEspecies(especiesSobGuarda)}). `;
-    atual +=
-      comMaisDeUm > 0
-        ? `${plural(comMaisDeUm, 'tutor cuida', 'tutores cuidam')} de mais de um animal. `
-        : '';
+      `Na data de emissão, a ONG conta com ${plural(acolhedores.length, 'acolhedor cadastrado', 'acolhedores cadastrados')}: ` +
+      `${plural(tutores.length, 'tutor', 'tutores')}, responsáveis por ${plural(animaisSobGuarda.length, 'animal resgatado', 'animais resgatados')} ` +
+      `(${contarEspecies(animaisSobGuarda.map((g) => g.animal.especie))}), e ${plural(adotantes.length, 'adotante', 'adotantes')} sem animal vinculado.`;
     if (mediaGuarda !== null) {
-      atual += `Em média, os animais estão com seus tutores há ${formatarDuracao(mediaGuarda)}`;
-      atual +=
-        guardasMaisDeUmAno > 0
-          ? `, e ${plural(guardasMaisDeUmAno, 'adoção já supera', 'adoções já superam')} um ano de convivência.`
-          : '.';
+      atual += ` Em média, os animais estão com seus tutores há ${formatarDuracao(mediaGuarda)}.`;
     }
-    resumo.push(atual.trim());
+    resumo.push(atual);
   }
   resumo.push(
-    `${introducaoPeriodo(periodo)}, ${plural(novosTutores, 'pessoa se tornou tutora', 'pessoas se tornaram tutoras')} pela primeira vez ` +
-      `e os tutores atuais realizaram ${plural(adocoesPeriodo.length, 'adoção', 'adoções')}` +
-      (devolucoesPeriodo.length > 0
-        ? `, com ${plural(devolucoesPeriodo.length, 'devolução registrada', 'devoluções registradas')}.`
-        : ', sem registro de devoluções.'),
+    `${introducaoPeriodo(periodo)}, foram realizados ${plural(novosCadastros.length, 'novo cadastro', 'novos cadastros')}, ` +
+      `${plural(novosTutores, 'pessoa se tornou tutora', 'pessoas se tornaram tutoras')} pela primeira vez, ` +
+      `e foram registradas ${plural(adocoesPeriodo.length, 'adoção', 'adoções')} e ${plural(devolucoesPeriodo.length, 'devolução', 'devoluções')}.`,
   );
+  if (aguardando.length > 0 || comDevolucao.length > 0) {
+    let atencao = '';
+    if (aguardando.length > 0) {
+      atencao += `${plural(aguardando.length, 'adotante aguarda', 'adotantes aguardam')} a primeira adoção, em média há ${formatarDuracao(mediaEspera ?? 0)}`;
+      atencao +=
+        esperaLonga > 0
+          ? ` (${plural(esperaLonga, 'cadastro', 'cadastros')} com mais de ${LIMITE_ESPERA_DIAS} dias): bons candidatos para contato ativo quando chegarem animais compatíveis.`
+          : '.';
+    }
+    if (comDevolucao.length > 0) {
+      atencao += ` ${plural(comDevolucao.length, 'adotante já devolveu', 'adotantes já devolveram')} animais à ONG; recomenda-se avaliar esse histórico antes de aprovar novas adoções.`;
+    }
+    resumo.push(atencao.trim());
+  }
 
-  const guardaAtivaDe = (registro: string) =>
-    guardasAtivas.find((a) => a.animal.numeroRegistro === registro);
+  const intervalos = intervalosDoPeriodo(
+    periodo,
+    [
+      ...acolhedores.map((a) => a.criadoEm),
+      ...todasAdocoes.map((a) => a.dataAdocao),
+    ],
+    agora,
+  );
 
   const movimentacoes = [
     ...adocoesPeriodo.map((a) => ({ data: a.dataAdocao, tipo: 'Adoção', a })),
@@ -168,49 +171,44 @@ export function montarRelatorioTutores(
     })),
   ].sort((x, y) => x.data.getTime() - y.data.getTime());
 
-  const fichas = ordenarPorNome(tutores)
-    .filter((t) => teveAtividade(t, periodo))
-    .map((tutor) => {
-      const animais = tutor.animaisVinculados.map((animal) => {
-        const guarda = guardaAtivaDe(animal.numeroRegistro);
-        const especie = ESPECIE_LABEL[animal.especie].toLowerCase();
-        return guarda
-          ? `${animal.nome} (${especie}, sob guarda desde ${formatarData(guarda.dataAdocao)}, há ${formatarDuracao(diasEntre(guarda.dataAdocao, agora))})`
-          : `${animal.nome} (${especie})`;
-      });
-      return {
-        titulo: `${tutor.nome} · Cadastro #${tutor.codigo}`,
-        subtitulo: `Tutor · ${plural(animais.length, 'animal sob guarda', 'animais sob guarda')}`,
-        paragrafos: [
-          `Cadastro realizado em ${formatarData(tutor.criadoEm)}. ` +
-            `Responsável atualmente por ${plural(animais.length, 'animal', 'animais')}: ${juntarLista(animais)}. ` +
-            descreverHistorico(tutor.adocoes),
-          descreverContato(tutor),
-        ],
-        tabelas: [tabelaHistoricoAdocoes(tutor.adocoes, agora)],
-      };
-    });
+  const ultimaDevolucao = (adocoes: AdocaoRelatorio[]) =>
+    adocoes.filter((a) => a.devolvidoEm).at(-1);
 
   return {
-    titulo: 'Relatório Histórico de Tutores',
-    finalidade: `Apresenta quem está com os animais resgatados pela ONG, há quanto tempo e o histórico de adoções de cada tutor. ${REGRA_SITUACAO}`,
+    titulo: 'Relatório de Acolhedores',
+    finalidade:
+      'Tutores e adotantes da ONG: onde estão os animais adotados, há quanto tempo, e quem aguarda para adotar.',
     geradoEm: meta.geradoEm,
     geradoPor: meta.geradoPor,
-    filtros: [{ rotulo: 'Período', valor: descreverPeriodo(periodo) }],
+    periodo: descreverPeriodo(periodo),
+    filtros: [],
     indicadores: [
-      { rotulo: 'Tutores ativos', valor: `${tutores.length}` },
+      {
+        rotulo: 'Acolhedores cadastrados',
+        valor: `${acolhedores.length}`,
+        detalhe: `${plural(tutores.length, 'tutor', 'tutores')} · ${plural(adotantes.length, 'adotante', 'adotantes')}`,
+      },
       {
         rotulo: 'Animais sob guarda',
         valor: `${animaisSobGuarda.length}`,
-        detalhe: contarEspecies(especiesSobGuarda),
-      },
-      {
-        rotulo: 'Tutores com 2+ animais',
-        valor: `${comMaisDeUm}`,
+        detalhe: contarEspecies(animaisSobGuarda.map((g) => g.animal.especie)),
       },
       {
         rotulo: 'Tempo médio de guarda',
         valor: mediaGuarda === null ? '-' : formatarDuracao(mediaGuarda),
+        detalhe: comMaisDeUm
+          ? `${plural(comMaisDeUm, 'tutor', 'tutores')} com 2+ animais`
+          : undefined,
+      },
+      {
+        rotulo: 'Espera média',
+        valor: mediaEspera === null ? '-' : formatarDuracao(mediaEspera),
+        detalhe: `${plural(aguardando.length, 'adotante aguardando', 'adotantes aguardando')}`,
+      },
+      {
+        rotulo: 'Novos cadastros',
+        valor: `${novosCadastros.length}`,
+        detalhe: 'no período',
       },
       {
         rotulo: 'Novos tutores',
@@ -224,14 +222,115 @@ export function montarRelatorioTutores(
       {
         rotulo: 'Devoluções no período',
         valor: `${devolucoesPeriodo.length}`,
-      },
-      {
-        rotulo: 'Guardas com mais de 1 ano',
-        valor: `${guardasMaisDeUmAno}`,
+        detalhe: comDevolucao.length
+          ? `${plural(comDevolucao.length, 'adotante', 'adotantes')} com devolução no histórico`
+          : undefined,
       },
     ],
     resumo,
     secoes: [
+      {
+        titulo: 'Perfil dos acolhedores',
+        descricao: 'Posição na data de emissão.',
+        graficos: [
+          {
+            tipo: 'rosca',
+            titulo: 'Acolhedores por situação',
+            centro: { valor: `${acolhedores.length}`, rotulo: 'cadastros' },
+            fatias: [
+              { rotulo: 'Tutores', valor: tutores.length, cor: PALETA.verde },
+              {
+                rotulo: 'Aguardando 1ª adoção',
+                valor: aguardando.length,
+                cor: PALETA.ambar,
+              },
+              {
+                rotulo: 'Adotantes c/ devolução',
+                valor: comDevolucao.length,
+                cor: PALETA.cinza,
+              },
+              {
+                rotulo: 'Outros adotantes',
+                valor:
+                  adotantes.length - aguardando.length - comDevolucao.length,
+                cor: PALETA.azul,
+              },
+            ].filter((f) => f.valor > 0 || f.rotulo !== 'Outros adotantes'),
+          },
+          {
+            tipo: 'barras',
+            titulo: 'Há quanto tempo os animais estão com tutores',
+            vazio: 'Nenhuma guarda vigente.',
+            itens:
+              diasDeGuarda.length === 0
+                ? []
+                : FAIXAS_GUARDA.map((faixa) => ({
+                    rotulo: faixa,
+                    valor: diasDeGuarda.filter(
+                      (d) => faixaDeGuarda(d) === faixa,
+                    ).length,
+                  })),
+          },
+        ],
+      },
+      {
+        titulo: 'Evolução no período',
+        descricao: `Cadastros, adoções e devoluções ao longo de ${descreverPeriodo(periodo).toLowerCase()}.`,
+        graficos: [
+          {
+            tipo: 'colunas',
+            titulo: 'Movimentação de acolhedores',
+            categorias: intervalos.map((i) => i.rotulo),
+            series: [
+              {
+                nome: 'Novos cadastros',
+                cor: PALETA.azul,
+                valores: somarPorIntervalo(
+                  intervalos,
+                  novosCadastros.map((a) => ({ data: a.criadoEm })),
+                ),
+              },
+              {
+                nome: 'Adoções',
+                cor: PALETA.verde,
+                valores: somarPorIntervalo(
+                  intervalos,
+                  adocoesPeriodo.map((a) => ({ data: a.dataAdocao })),
+                ),
+              },
+              {
+                nome: 'Devoluções',
+                cor: PALETA.cinza,
+                valores: somarPorIntervalo(
+                  intervalos,
+                  devolucoesPeriodo.map((a) => ({ data: a.devolvidoEm })),
+                ),
+              },
+            ],
+          },
+        ],
+        tabelas: [
+          {
+            titulo: 'Adoções e devoluções do período',
+            colunas: [
+              'Data',
+              'Evento',
+              'Animal',
+              'Acolhedor',
+              'Protetor da adoção',
+            ],
+            larguras: [52, 55, 90, '*', 90],
+            linhas: movimentacoes.map(({ data, tipo, a }) => [
+              formatarData(data),
+              tipo,
+              `${a.animal.nome} (${a.animal.numeroRegistro})`,
+              `${a.tutor.nome} (#${a.tutor.codigo})`,
+              a.protetor,
+            ]),
+            vazio: 'Nenhuma adoção ou devolução no período.',
+          },
+        ],
+      },
       {
         titulo: 'Animais sob guarda',
         descricao:
@@ -248,12 +347,7 @@ export function montarRelatorioTutores(
               'Tempo de guarda',
             ],
             larguras: [62, 70, 40, 55, '*', 52, 55],
-            linhas: animaisSobGuarda
-              .map(({ tutor, animal }) => ({
-                tutor,
-                animal,
-                guarda: guardaAtivaDe(animal.numeroRegistro),
-              }))
+            linhas: [...animaisSobGuarda]
               .sort(
                 (x, y) =>
                   (x.guarda?.dataAdocao.getTime() ?? 0) -
@@ -275,170 +369,12 @@ export function montarRelatorioTutores(
         ],
       },
       {
-        titulo: 'Adoções e devoluções do período',
-        descricao: `Período: ${descreverPeriodo(periodo)}.`,
-        tabelas: [
-          {
-            colunas: [
-              'Data',
-              'Evento',
-              'Animal',
-              'Tutor',
-              'Protetor da adoção',
-            ],
-            larguras: [52, 55, 90, '*', 90],
-            linhas: movimentacoes.map(({ data, tipo, a }) => [
-              formatarData(data),
-              tipo,
-              `${a.animal.nome} (${a.animal.numeroRegistro})`,
-              `${a.tutor.nome} (#${a.tutor.codigo})`,
-              a.protetor,
-            ]),
-            vazio: 'Nenhuma adoção ou devolução no período.',
-          },
-        ],
-      },
-    ],
-    fichas: {
-      titulo: 'Fichas históricas dos tutores',
-      descricao: temPeriodo(periodo)
-        ? 'Tutores com cadastro, adoção ou devolução no período.'
-        : 'Todos os tutores ativos.',
-      itens: fichas,
-      vazio: 'Nenhum tutor atende aos filtros informados.',
-    },
-  };
-}
-
-export function montarRelatorioAdotantes(
-  adotantes: AcolhedorRelatorio[],
-  periodo: Periodo,
-  meta: MetadadosRelatorio,
-): DocumentoRelatorio {
-  const agora = meta.geradoEm;
-  const aguardando = adotantes
-    .filter((a) => a.adocoes.length === 0)
-    .map((adotante) => ({
-      adotante,
-      dias: diasEntre(adotante.criadoEm, agora),
-    }))
-    .sort((x, y) => y.dias - x.dias);
-  const comDevolucao = adotantes.filter((a) =>
-    a.adocoes.some((ad) => ad.devolvidoEm),
-  );
-  const novosCadastros = adotantes.filter((a) =>
-    noPeriodo(a.criadoEm, periodo),
-  ).length;
-  const devolucoesPeriodo = adotantes
-    .flatMap((a) => a.adocoes)
-    .filter((a) => noPeriodo(a.devolvidoEm, periodo)).length;
-  const mediaEspera = media(aguardando.map((a) => a.dias));
-  const esperaLonga = aguardando.filter(
-    (a) => a.dias >= LIMITE_ESPERA_DIAS,
-  ).length;
-
-  const resumo: string[] = [];
-  if (adotantes.length === 0) {
-    resumo.push('Na data de emissão, não há adotantes cadastrados.');
-  } else {
-    let atual = `Na data de emissão, há ${plural(adotantes.length, 'adotante cadastrado', 'adotantes cadastrados')} sem animal vinculado. `;
-    if (aguardando.length > 0) {
-      atual += `Desses, ${plural(aguardando.length, 'aguarda', 'aguardam')} a primeira adoção, em média há ${formatarDuracao(mediaEspera ?? 0)} desde o cadastro`;
-      atual +=
-        esperaLonga > 0
-          ? ` (${plural(esperaLonga, 'cadastro', 'cadastros')} com mais de ${LIMITE_ESPERA_DIAS} dias de espera). `
-          : '. ';
-    }
-    atual +=
-      comDevolucao.length > 0
-        ? `${plural(comDevolucao.length, 'cadastro já adotou e devolveu', 'cadastros já adotaram e devolveram')} animais à ONG.`
-        : 'Nenhum adotante possui histórico de devolução.';
-    resumo.push(atual.trim());
-  }
-  resumo.push(
-    `${introducaoPeriodo(periodo)}, foram realizados ${plural(novosCadastros, 'novo cadastro', 'novos cadastros')} de adotantes ` +
-      `e ${plural(devolucoesPeriodo, 'devolução foi registrada', 'devoluções foram registradas')} por pessoas que hoje não têm animal vinculado.`,
-  );
-  if (esperaLonga > 0 || comDevolucao.length > 0) {
-    resumo.push(
-      [
-        esperaLonga > 0
-          ? 'Os cadastros com espera longa são bons candidatos para contato ativo quando chegarem animais compatíveis.'
-          : '',
-        comDevolucao.length > 0
-          ? 'Recomenda-se avaliar o histórico de devoluções antes de aprovar novas adoções para esses cadastros.'
-          : '',
-      ]
-        .filter(Boolean)
-        .join(' '),
-    );
-  }
-
-  const fichas = ordenarPorNome(adotantes)
-    .filter((a) => teveAtividade(a, periodo))
-    .map((adotante) => {
-      const devolvidas = adotante.adocoes.filter((a) => a.devolvidoEm);
-      const situacao =
-        adotante.adocoes.length === 0
-          ? `Aguardando a primeira adoção há ${formatarDuracao(diasEntre(adotante.criadoEm, agora))}`
-          : `${plural(devolvidas.length, 'devolução', 'devoluções')} no histórico`;
-      return {
-        titulo: `${adotante.nome} · Cadastro #${adotante.codigo}`,
-        subtitulo: `Adotante · ${situacao}`,
-        paragrafos: [
-          `Cadastro realizado em ${formatarData(adotante.criadoEm)} (há ${formatarDuracao(diasEntre(adotante.criadoEm, agora))}). ` +
-            descreverHistorico(adotante.adocoes),
-          descreverContato(adotante),
-        ],
-        tabelas:
-          adotante.adocoes.length > 0
-            ? [tabelaHistoricoAdocoes(adotante.adocoes, agora)]
-            : [],
-      };
-    });
-
-  return {
-    titulo: 'Relatório Histórico de Adotantes',
-    finalidade: `Apresenta os interessados em adotar que estão sem animal vinculado: há quanto tempo aguardam e se já tiveram adoções devolvidas. ${REGRA_SITUACAO}`,
-    geradoEm: meta.geradoEm,
-    geradoPor: meta.geradoPor,
-    filtros: [{ rotulo: 'Período', valor: descreverPeriodo(periodo) }],
-    indicadores: [
-      { rotulo: 'Adotantes cadastrados', valor: `${adotantes.length}` },
-      {
-        rotulo: 'Novos cadastros',
-        valor: `${novosCadastros}`,
-        detalhe: 'no período',
-      },
-      {
-        rotulo: 'Aguardando 1ª adoção',
-        valor: `${aguardando.length}`,
-        detalhe:
-          mediaEspera === null
-            ? undefined
-            : `espera média de ${formatarDuracao(mediaEspera)}`,
-      },
-      {
-        rotulo: 'Com devolução no histórico',
-        valor: `${comDevolucao.length}`,
-      },
-      {
-        rotulo: 'Devoluções no período',
-        valor: `${devolucoesPeriodo}`,
-      },
-      {
-        rotulo: `Espera acima de ${LIMITE_ESPERA_DIAS} dias`,
-        valor: `${esperaLonga}`,
-      },
-    ],
-    resumo,
-    secoes: [
-      {
-        titulo: 'Adotantes com histórico de devolução',
+        titulo: 'Pontos de atenção',
         descricao:
-          'Cadastros que já adotaram e devolveram animais. Avalie o histórico antes de aprovar uma nova adoção.',
+          'Adotantes que já devolveram animais e cadastros que aguardam há mais tempo a primeira adoção.',
         tabelas: [
           {
+            titulo: 'Adotantes com histórico de devolução',
             colunas: [
               'Cadastro',
               'Nome',
@@ -449,26 +385,20 @@ export function montarRelatorioAdotantes(
             ],
             larguras: [45, 100, 40, 50, 55, '*'],
             linhas: ordenarPorNome(comDevolucao).map((a) => {
-              const devolvidas = a.adocoes.filter((ad) => ad.devolvidoEm);
-              const ultima = devolvidas[devolvidas.length - 1];
+              const ultima = ultimaDevolucao(a.adocoes);
               return [
                 `#${a.codigo}`,
                 a.nome,
                 `${a.adocoes.length}`,
-                `${devolvidas.length}`,
-                formatarData(ultima.devolvidoEm),
-                ultima.observacoesDevolucao?.trim() || '-',
+                `${a.adocoes.filter((ad) => ad.devolvidoEm).length}`,
+                formatarData(ultima?.devolvidoEm),
+                ultima?.observacoesDevolucao?.trim() || '-',
               ];
             }),
             vazio: 'Nenhum adotante com histórico de devolução.',
           },
-        ],
-      },
-      {
-        titulo: 'Cadastros aguardando a primeira adoção',
-        descricao: 'Ordenados pelo maior tempo de espera desde o cadastro.',
-        tabelas: [
           {
+            titulo: 'Aguardando a primeira adoção',
             colunas: [
               'Cadastro',
               'Nome',
@@ -489,13 +419,11 @@ export function montarRelatorioAdotantes(
         ],
       },
     ],
-    fichas: {
-      titulo: 'Fichas históricas dos adotantes',
-      descricao: temPeriodo(periodo)
-        ? 'Adotantes com cadastro ou devolução no período.'
-        : 'Todos os adotantes ativos.',
-      itens: fichas,
-      vazio: 'Nenhum adotante atende aos filtros informados.',
-    },
+    notas: [
+      'Tutor é o acolhedor com ao menos um animal vinculado; adotante é o acolhedor cadastrado sem animal vinculado no momento da emissão.',
+      'Cadastros, adoções e devoluções consideram o período analisado; perfil, guardas e fila de espera referem-se à data de emissão.',
+      'Novo tutor é quem realizou a primeira adoção dentro do período.',
+      'Acolhedores e animais excluídos do cadastro não são considerados.',
+    ],
   };
 }

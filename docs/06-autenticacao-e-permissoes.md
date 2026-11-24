@@ -60,7 +60,7 @@ interface JwtPayload {
 | **Adoção** — registrar vínculo / devolução            |  ✅   |    ✅    |
 | **Histórico de adoções** — consultar                  |  ✅   |    ✅    |
 | **Dashboard** — métricas                              |  ✅   |    ✅    |
-| **Relatórios** — gerar PDFs (animais/adotantes/tutores) |  ✅   |    ❌    |
+| **Relatórios** — gerar PDFs (animais/acolhedores/doações) |  ✅   |    ❌    |
 
 > Regra geral: **PROTETOR opera o dia a dia** (animais, tutores, adoções);
 > **ADMIN também administra usuários e as exclusões** (que são auditadas — RN03).

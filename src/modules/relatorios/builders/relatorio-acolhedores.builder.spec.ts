@@ -3,10 +3,7 @@ import {
   AcolhedorRelatorio,
   AdocaoRelatorio,
 } from '../repositories/relatorios.repository.interface';
-import {
-  montarRelatorioAdotantes,
-  montarRelatorioTutores,
-} from './relatorio-acolhedores.builder';
+import { montarRelatorioAcolhedores } from './relatorio-acolhedores.builder';
 
 const AGORA = new Date('2026-11-24T15:00:00Z');
 const NOVEMBRO = {
@@ -25,7 +22,6 @@ function adocao(
   return {
     dataAdocao: new Date(dataAdocao),
     devolvidoEm: devolvidoEm ? new Date(devolvidoEm) : null,
-    observacoes: null,
     observacoesDevolucao,
     protetor: 'Paula Freitas',
     tutor,
@@ -41,10 +37,7 @@ function acolhedor(dados: Partial<AcolhedorRelatorio>): AcolhedorRelatorio {
   return {
     codigo: 1,
     nome: 'Acolhedor',
-    cpf: '390.533.447-05',
     telefone: '(82) 99912-3456',
-    email: 'contato@email.com',
-    endereco: 'Rua A, 10 - Centro, Arapiraca/AL',
     criadoEm: new Date('2026-01-01T12:00Z'),
     adocoes: [],
     animaisVinculados: [],
@@ -73,165 +66,158 @@ const REX = {
   especie: EspecieAnimal.CAO,
 };
 
-describe('montarRelatorioTutores', () => {
-  const ana = acolhedor({
-    codigo: 1,
-    nome: 'Ana Clara',
-    criadoEm: new Date('2026-10-01T12:00Z'),
-    adocoes: [
-      adocao(MIA, { codigo: 1, nome: 'Ana Clara' }, '2026-11-15T12:00Z'),
-    ],
-    animaisVinculados: [{ ...MIA, raca: 'SRD', status: StatusAnimal.ADOTADO }],
-  });
-  const carlos = acolhedor({
-    codigo: 2,
-    nome: 'Carlos Lima',
-    criadoEm: new Date('2025-01-01T12:00Z'),
-    adocoes: [
-      adocao(TOBY, { codigo: 2, nome: 'Carlos Lima' }, '2025-02-01T12:00Z'),
-      adocao(
-        BOB,
-        { codigo: 2, nome: 'Carlos Lima' },
-        '2026-04-01T12:00Z',
-        '2026-11-20T12:00Z',
-      ),
-    ],
-    animaisVinculados: [
-      { ...TOBY, raca: 'Labrador', status: StatusAnimal.ADOTADO },
-    ],
-  });
-  const valor = (
-    doc: ReturnType<typeof montarRelatorioTutores>,
-    rotulo: string,
-  ) => doc.indicadores.find((i) => i.rotulo === rotulo)?.valor;
+// Tutores: Ana (adotou em novembro) e Carlos (guarda desde 2025 e uma
+// devolução em novembro).
+const ana = acolhedor({
+  codigo: 1,
+  nome: 'Ana Clara',
+  criadoEm: new Date('2026-10-01T12:00Z'),
+  adocoes: [adocao(MIA, { codigo: 1, nome: 'Ana Clara' }, '2026-11-15T12:00Z')],
+  animaisVinculados: [{ ...MIA, status: StatusAnimal.ADOTADO }],
+});
+const carlos = acolhedor({
+  codigo: 2,
+  nome: 'Carlos Lima',
+  criadoEm: new Date('2025-01-01T12:00Z'),
+  adocoes: [
+    adocao(TOBY, { codigo: 2, nome: 'Carlos Lima' }, '2025-02-01T12:00Z'),
+    adocao(
+      BOB,
+      { codigo: 2, nome: 'Carlos Lima' },
+      '2026-04-01T12:00Z',
+      '2026-11-20T12:00Z',
+    ),
+  ],
+  animaisVinculados: [{ ...TOBY, status: StatusAnimal.ADOTADO }],
+});
+// Adotantes: Beatriz (espera longa), Diego (devolveu o Rex) e Eva (nova).
+const beatriz = acolhedor({
+  codigo: 3,
+  nome: 'Beatriz Souza',
+  criadoEm: new Date('2026-07-01T12:00Z'),
+});
+const diego = acolhedor({
+  codigo: 4,
+  nome: 'Diego Alves',
+  criadoEm: new Date('2026-11-10T12:00Z'),
+  adocoes: [
+    adocao(
+      REX,
+      { codigo: 4, nome: 'Diego Alves' },
+      '2026-11-12T12:00Z',
+      '2026-11-18T12:00Z',
+      'Alergia na família',
+    ),
+  ],
+});
+const eva = acolhedor({
+  codigo: 5,
+  nome: 'Eva Martins',
+  criadoEm: new Date('2026-11-20T12:00Z'),
+});
+const ACOLHEDORES = [ana, beatriz, carlos, diego, eva];
 
-  it('resume a situação atual e as movimentações do período', () => {
-    const doc = montarRelatorioTutores([ana, carlos], NOVEMBRO, META);
+type Documento = ReturnType<typeof montarRelatorioAcolhedores>;
 
-    expect(valor(doc, 'Tutores ativos')).toBe('2');
+const valor = (doc: Documento, rotulo: string) =>
+  doc.indicadores.find((i) => i.rotulo === rotulo)?.valor;
+
+function secao(doc: Documento, titulo: string) {
+  const encontrada = doc.secoes.find((s) => s.titulo === titulo);
+  if (!encontrada) throw new Error(`Seção não encontrada: ${titulo}`);
+  return encontrada;
+}
+
+describe('montarRelatorioAcolhedores', () => {
+  it('classifica tutores e adotantes pela regra de animal vinculado', () => {
+    const doc = montarRelatorioAcolhedores(ACOLHEDORES, NOVEMBRO, META);
+    const [perfil] = secao(doc, 'Perfil dos acolhedores').graficos ?? [];
+
+    expect(doc.indicadores[0]).toEqual({
+      rotulo: 'Acolhedores cadastrados',
+      valor: '5',
+      detalhe: '2 tutores · 3 adotantes',
+    });
+    expect(perfil).toMatchObject({
+      tipo: 'rosca',
+      fatias: [
+        { rotulo: 'Tutores', valor: 2 },
+        { rotulo: 'Aguardando 1ª adoção', valor: 2 },
+        { rotulo: 'Adotantes c/ devolução', valor: 1 },
+      ],
+    });
+  });
+
+  it('calcula indicadores da situação atual e do período', () => {
+    const doc = montarRelatorioAcolhedores(ACOLHEDORES, NOVEMBRO, META);
+
     expect(valor(doc, 'Animais sob guarda')).toBe('2');
+    expect(valor(doc, 'Novos cadastros')).toBe('2');
     expect(valor(doc, 'Novos tutores')).toBe('1');
-    expect(valor(doc, 'Adoções no período')).toBe('1');
-    expect(valor(doc, 'Devoluções no período')).toBe('1');
-    expect(valor(doc, 'Guardas com mais de 1 ano')).toBe('1');
+    expect(valor(doc, 'Adoções no período')).toBe('2');
+    expect(valor(doc, 'Devoluções no período')).toBe('2');
+    expect(valor(doc, 'Espera média')).toBe('2 meses');
+  });
+
+  it('descreve tutores, período e pontos de atenção no resumo', () => {
+    const doc = montarRelatorioAcolhedores(ACOLHEDORES, NOVEMBRO, META);
+
     expect(doc.resumo[0]).toContain(
-      'a ONG conta com 2 tutores ativos, responsáveis por 2 animais resgatados (1 cão e 1 gato)',
+      'a ONG conta com 5 acolhedores cadastrados: 2 tutores, responsáveis por 2 animais resgatados (1 cão e 1 gato), e 3 adotantes sem animal vinculado.',
     );
     expect(doc.resumo[1]).toBe(
-      'Entre 01/11/2026 e 30/11/2026, 1 pessoa se tornou tutora pela primeira vez e os tutores atuais realizaram 1 adoção, com 1 devolução registrada.',
+      'Entre 01/11/2026 e 30/11/2026, foram realizados 2 novos cadastros, 1 pessoa se tornou tutora pela primeira vez, e foram registradas 2 adoções e 2 devoluções.',
     );
+    expect(doc.resumo[2]).toContain('2 adotantes aguardam a primeira adoção');
+    expect(doc.resumo[2]).toContain('1 adotante já devolveu animais à ONG');
+  });
+
+  it('distribui as guardas vigentes por faixa de tempo', () => {
+    const doc = montarRelatorioAcolhedores(ACOLHEDORES, NOVEMBRO, META);
+    const [, faixas] = secao(doc, 'Perfil dos acolhedores').graficos ?? [];
+
+    expect(faixas).toMatchObject({
+      tipo: 'barras',
+      itens: [
+        { rotulo: 'Até 3 meses', valor: 1 },
+        { rotulo: 'De 3 a 6 meses', valor: 0 },
+        { rotulo: 'De 6 meses a 1 ano', valor: 0 },
+        { rotulo: 'Mais de 1 ano', valor: 1 },
+      ],
+    });
   });
 
   it('lista os animais sob guarda pela data de adoção', () => {
-    const doc = montarRelatorioTutores([ana, carlos], NOVEMBRO, META);
-    const linhas = doc.secoes[0].tabelas[0].linhas;
+    const doc = montarRelatorioAcolhedores(ACOLHEDORES, NOVEMBRO, META);
+    const [tabela] = secao(doc, 'Animais sob guarda').tabelas ?? [];
 
-    expect(linhas.map((l) => l[1])).toEqual(['Toby', 'Mia']);
-    expect(linhas[1][4]).toBe('Ana Clara (#1)');
-    expect(linhas[1][5]).toBe('15/11/2026');
-  });
-
-  it('descreve cada tutor na ficha com CPF mascarado', () => {
-    const doc = montarRelatorioTutores([ana, carlos], NOVEMBRO, META);
-    const fichaCarlos = doc.fichas.itens.find((f) =>
-      f.titulo.startsWith('Carlos'),
-    );
-
-    expect(fichaCarlos?.paragrafos[0]).toContain(
-      'Responsável atualmente por 1 animal: Toby (cão, sob guarda desde 01/02/2025',
-    );
-    expect(fichaCarlos?.paragrafos[0]).toContain(
-      'No total, realizou 2 adoções pela ONG, das quais 1 foi devolvida.',
-    );
-    expect(fichaCarlos?.paragrafos[1]).toContain('CPF ***.533.447-**');
-    expect(fichaCarlos?.paragrafos[1]).not.toContain('390.533.447-05');
-    expect(fichaCarlos?.tabelas[0].linhas[0][2]).toBe('Vigente');
-  });
-
-  it('inclui nas fichas só tutores com movimentação no período', () => {
-    const outubro = {
-      de: new Date('2026-10-01T03:00:00Z'),
-      ate: new Date('2026-11-01T02:59:59Z'),
-    };
-    const doc = montarRelatorioTutores([ana, carlos], outubro, META);
-
-    expect(doc.fichas.itens.map((f) => f.titulo)).toEqual([
-      'Ana Clara · Cadastro #1',
+    expect(tabela.linhas.map((l) => [l[1], l[4], l[5]])).toEqual([
+      ['Toby', 'Carlos Lima (#2)', '01/02/2025'],
+      ['Mia', 'Ana Clara (#1)', '15/11/2026'],
     ]);
   });
-});
 
-describe('montarRelatorioAdotantes', () => {
-  const beatriz = acolhedor({
-    codigo: 3,
-    nome: 'Beatriz Souza',
-    criadoEm: new Date('2026-07-01T12:00Z'),
-  });
-  const diego = acolhedor({
-    codigo: 4,
-    nome: 'Diego Alves',
-    criadoEm: new Date('2026-11-10T12:00Z'),
-    adocoes: [
-      adocao(
-        REX,
-        { codigo: 4, nome: 'Diego Alves' },
-        '2026-11-12T12:00Z',
-        '2026-11-18T12:00Z',
-        'Alergia na família',
-      ),
-    ],
-  });
-  const eva = acolhedor({
-    codigo: 5,
-    nome: 'Eva Martins',
-    criadoEm: new Date('2026-11-20T12:00Z'),
-  });
-  const ADOTANTES = [beatriz, diego, eva];
-  const valor = (
-    doc: ReturnType<typeof montarRelatorioAdotantes>,
-    rotulo: string,
-  ) => doc.indicadores.find((i) => i.rotulo === rotulo)?.valor;
+  it('destaca devoluções e a fila de espera nos pontos de atenção', () => {
+    const doc = montarRelatorioAcolhedores(ACOLHEDORES, NOVEMBRO, META);
+    const [devolucoes, aguardando] =
+      secao(doc, 'Pontos de atenção').tabelas ?? [];
 
-  it('calcula espera, novos cadastros e histórico de devoluções', () => {
-    const doc = montarRelatorioAdotantes(ADOTANTES, NOVEMBRO, META);
-
-    expect(valor(doc, 'Adotantes cadastrados')).toBe('3');
-    expect(valor(doc, 'Novos cadastros')).toBe('2');
-    expect(valor(doc, 'Aguardando 1ª adoção')).toBe('2');
-    expect(valor(doc, 'Com devolução no histórico')).toBe('1');
-    expect(valor(doc, 'Devoluções no período')).toBe('1');
-    expect(valor(doc, 'Espera acima de 90 dias')).toBe('1');
-    expect(doc.resumo[0]).toContain(
-      '1 cadastro já adotou e devolveu animais à ONG.',
-    );
-    expect(doc.resumo[2]).toContain(
-      'Recomenda-se avaliar o histórico de devoluções',
-    );
-  });
-
-  it('destaca os adotantes com devolução e a fila de espera', () => {
-    const doc = montarRelatorioAdotantes(ADOTANTES, NOVEMBRO, META);
-    const [devolucoes, aguardando] = doc.secoes;
-
-    expect(devolucoes.tabelas[0].linhas).toEqual([
+    expect(devolucoes.linhas).toEqual([
       ['#4', 'Diego Alves', '1', '1', '18/11/2026', 'Alergia na família'],
     ]);
-    expect(aguardando.tabelas[0].linhas.map((l) => l[1])).toEqual([
+    expect(aguardando.linhas.map((l) => l[1])).toEqual([
       'Beatriz Souza',
       'Eva Martins',
     ]);
   });
 
-  it('inclui nas fichas só adotantes com cadastro ou devolução no período', () => {
-    const doc = montarRelatorioAdotantes(ADOTANTES, NOVEMBRO, META);
+  it('produz um relatório coerente sem cadastros', () => {
+    const doc = montarRelatorioAcolhedores([], {}, META);
 
-    expect(doc.fichas.itens.map((f) => f.titulo)).toEqual([
-      'Diego Alves · Cadastro #4',
-      'Eva Martins · Cadastro #5',
-    ]);
-    expect(doc.fichas.itens[1].paragrafos[0]).toContain(
-      'Ainda não realizou adoções pela ONG.',
+    expect(doc.periodo).toBe('Todo o histórico');
+    expect(doc.resumo[0]).toBe(
+      'Na data de emissão, não há acolhedores cadastrados.',
     );
-    expect(doc.fichas.itens[1].tabelas).toEqual([]);
+    expect(valor(doc, 'Tempo médio de guarda')).toBe('-');
   });
 });

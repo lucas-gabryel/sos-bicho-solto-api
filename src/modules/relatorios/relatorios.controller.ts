@@ -42,7 +42,7 @@ export class RelatoriosController {
   @ApiProduces('application/pdf')
   @ApiResponse({
     status: 200,
-    description: 'Relatório histórico de animais em PDF',
+    description: 'Relatório de animais em PDF',
   })
   async animais(
     @Query() filtros: FiltrarRelatorioAnimaisDto,
@@ -55,39 +55,39 @@ export class RelatoriosController {
     return arquivoPdf('animais', pdf);
   }
 
-  @Get('tutores')
+  @Get('acolhedores')
   @Perfis(Perfil.ADMIN)
   @ApiProduces('application/pdf')
   @ApiResponse({
     status: 200,
-    description: 'Relatório histórico de tutores em PDF',
+    description: 'Relatório de acolhedores (tutores e adotantes) em PDF',
   })
-  async tutores(
+  async acolhedores(
     @Query() filtros: FiltrarRelatorioPeriodoDto,
     @UsuarioAtual() usuario: JwtPayload,
   ): Promise<StreamableFile> {
-    const pdf = await this.relatoriosService.gerarRelatorioTutores(
+    const pdf = await this.relatoriosService.gerarRelatorioAcolhedores(
       filtros,
       usuario,
     );
-    return arquivoPdf('tutores', pdf);
+    return arquivoPdf('acolhedores', pdf);
   }
 
-  @Get('adotantes')
+  @Get('doacoes')
   @Perfis(Perfil.ADMIN)
   @ApiProduces('application/pdf')
   @ApiResponse({
     status: 200,
-    description: 'Relatório histórico de adotantes em PDF',
+    description: 'Relatório de doações, doadores e estoque em PDF',
   })
-  async adotantes(
+  async doacoes(
     @Query() filtros: FiltrarRelatorioPeriodoDto,
     @UsuarioAtual() usuario: JwtPayload,
   ): Promise<StreamableFile> {
-    const pdf = await this.relatoriosService.gerarRelatorioAdotantes(
+    const pdf = await this.relatoriosService.gerarRelatorioDoacoes(
       filtros,
       usuario,
     );
-    return arquivoPdf('adotantes', pdf);
+    return arquivoPdf('doacoes', pdf);
   }
 }

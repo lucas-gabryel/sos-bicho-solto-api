@@ -1,12 +1,11 @@
 import {
   EspecieAnimal,
   MotivoSaidaAnimal,
-  PorteAnimal,
-  SexoAnimal,
   StatusAnimal,
+  TipoDoacao,
   TipoEventoAnimal,
+  TipoMovimentacaoEstoque,
 } from '@prisma/client';
-import { SituacaoAcolhedor } from '#src/modules/tutores/enums/situacao-acolhedor.enum';
 
 export const RELATORIOS_REPOSITORY = Symbol('RELATORIOS_REPOSITORY');
 
@@ -15,14 +14,11 @@ export interface EventoRelatorio {
   tipo: TipoEventoAnimal;
   motivoSaida: MotivoSaidaAnimal | null;
   descricao: string;
-  automatico: boolean;
-  registradoPor: string | null;
 }
 
 export interface AdocaoRelatorio {
   dataAdocao: Date;
   devolvidoEm: Date | null;
-  observacoes: string | null;
   observacoesDevolucao: string | null;
   protetor: string;
   tutor: { codigo: number; nome: string };
@@ -41,20 +37,11 @@ export interface AnimalRelatorio {
   numeroRegistro: string;
   nome: string;
   especie: EspecieAnimal;
-  raca: string;
-  sexo: SexoAnimal;
-  porte: PorteAnimal | null;
-  cor: string;
-  pesoInicial: number;
-  pesoAtual: number | null;
-  dataNascimento: Date | null;
   castrado: boolean;
   vacinado: boolean;
   localResgate: string;
-  observacoes: string | null;
   status: StatusAnimal;
   criadoEm: Date;
-  tutor: { codigo: number; nome: string } | null;
   eventos: EventoRelatorio[];
   adocoes: AdocaoRelatorio[];
 }
@@ -63,27 +50,47 @@ export interface AnimalVinculadoRelatorio {
   numeroRegistro: string;
   nome: string;
   especie: EspecieAnimal;
-  raca: string;
   status: StatusAnimal;
 }
 
 export interface AcolhedorRelatorio {
   codigo: number;
   nome: string;
-  cpf: string;
   telefone: string;
-  email: string;
-  endereco: string;
   criadoEm: Date;
   adocoes: AdocaoRelatorio[];
   animaisVinculados: AnimalVinculadoRelatorio[];
 }
 
+export interface DoacaoRelatorio {
+  tipo: TipoDoacao;
+  valor: number | null;
+  quantidade: number | null;
+  unidadeMedida: string | null;
+  descricao: string | null;
+  // Data civil (sem hora) ancorada ao meio-dia local, para cair no dia certo
+  // nas comparações de período.
+  dataRecebimento: Date;
+  doador: { id: string; nome: string } | null;
+}
+
+export interface MovimentacaoEstoqueRelatorio {
+  tipo: TipoMovimentacaoEstoque;
+  tipoItem: TipoDoacao;
+  descricaoItem: string;
+  quantidade: number;
+  unidadeMedida: string;
+  dataMovimento: Date;
+}
+
 // Os relatórios trazem o histórico completo e filtram/agregam em memória:
-// indicadores do período, situação atual e fichas saem da mesma fonte, o que
+// indicadores do período, situação atual e tabelas saem da mesma fonte, o que
 // mantém os números consistentes entre si (volume compatível com uma ONG).
 export interface IRelatoriosRepository {
   buscarAnimais(especie?: EspecieAnimal): Promise<AnimalRelatorio[]>;
-  buscarAcolhedores(situacao: SituacaoAcolhedor): Promise<AcolhedorRelatorio[]>;
+  buscarAcolhedores(): Promise<AcolhedorRelatorio[]>;
+  buscarDoacoes(): Promise<DoacaoRelatorio[]>;
+  // Em ordem cronológica, como exige o cálculo de saldo do estoque.
+  buscarMovimentacoesEstoque(): Promise<MovimentacaoEstoqueRelatorio[]>;
   buscarNomeUsuario(id: string): Promise<string | null>;
 }

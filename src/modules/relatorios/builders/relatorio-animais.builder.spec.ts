@@ -1,7 +1,6 @@
 import {
   EspecieAnimal,
   MotivoSaidaAnimal,
-  SexoAnimal,
   StatusAnimal,
   TipoEventoAnimal,
 } from '@prisma/client';
@@ -33,8 +32,6 @@ function evento(
     tipo,
     motivoSaida,
     descricao,
-    automatico: true,
-    registradoPor: 'Paula Freitas',
   };
 }
 
@@ -50,7 +47,6 @@ function adocao(
   return {
     dataAdocao: new Date(dataAdocao),
     devolvidoEm: devolvidoEm ? new Date(devolvidoEm) : null,
-    observacoes: null,
     observacoesDevolucao: devolvidoEm ? 'Mudança de cidade' : null,
     protetor: 'Paula Freitas',
     tutor,
@@ -69,20 +65,11 @@ function animal(dados: Partial<AnimalRelatorio>): AnimalRelatorio {
     numeroRegistro: '01.01.2026.1',
     nome: 'Animal',
     especie: EspecieAnimal.CAO,
-    raca: 'SRD',
-    sexo: SexoAnimal.MACHO,
-    porte: null,
-    cor: 'Caramelo',
-    pesoInicial: 7.2,
-    pesoAtual: null,
-    dataNascimento: null,
     castrado: false,
     vacinado: false,
     localResgate: 'Centro, Arapiraca/AL',
-    observacoes: null,
     status: StatusAnimal.ACOLHIMENTO,
     criadoEm: new Date('2026-01-01T12:00Z'),
-    tutor: null,
     eventos: [],
     adocoes: [],
     ...dados,
@@ -98,7 +85,6 @@ const rex = animal({
   nome: 'Rex',
   castrado: true,
   vacinado: true,
-  pesoAtual: 8.1,
   criadoEm: new Date('2026-06-01T12:00Z'),
   eventos: [
     evento('2026-06-01T12:00Z', TipoEventoAnimal.ENTRADA, 'Entrada na ONG'),
@@ -116,10 +102,8 @@ const miaBase = {
 };
 const mia = animal({
   ...miaBase,
-  sexo: SexoAnimal.FEMEA,
   criadoEm: new Date(miaBase.criadoEm),
   status: StatusAnimal.ADOTADO,
-  tutor: ANA,
   eventos: [
     evento('2026-11-05T12:00Z', TipoEventoAnimal.ENTRADA, 'Entrada na ONG'),
     evento(
@@ -161,7 +145,6 @@ const luna = animal({
   nome: 'Luna',
   numeroRegistro: '10.01.2026.1',
   especie: EspecieAnimal.GATO,
-  sexo: SexoAnimal.FEMEA,
   status: StatusAnimal.OBITO,
   criadoEm: new Date('2026-01-10T12:00Z'),
   eventos: [
@@ -177,11 +160,16 @@ const luna = animal({
 
 const ANIMAIS = [rex, mia, bob, luna];
 
-function indicador(
-  doc: ReturnType<typeof montarRelatorioAnimais>,
-  rotulo: string,
-) {
+type Documento = ReturnType<typeof montarRelatorioAnimais>;
+
+function indicador(doc: Documento, rotulo: string) {
   return doc.indicadores.find((i) => i.rotulo === rotulo);
+}
+
+function secao(doc: Documento, titulo: string) {
+  const encontrada = doc.secoes.find((s) => s.titulo === titulo);
+  if (!encontrada) throw new Error(`Seção não encontrada: ${titulo}`);
+  return encontrada;
 }
 
 describe('montarRelatorioAnimais', () => {
@@ -216,7 +204,7 @@ describe('montarRelatorioAnimais', () => {
     expect(indicador(doc, 'Devoluções no período')?.valor).toBe('1');
     expect(indicador(doc, 'Transferências / óbitos')?.valor).toBe('0 / 0');
     expect(indicador(doc, 'Em acolhimento hoje')?.valor).toBe('2');
-    expect(indicador(doc, 'Castrados / vacinados')?.valor).toBe('50% / 50%');
+    expect(indicador(doc, 'Com tutores hoje')?.valor).toBe('1');
     expect(indicador(doc, 'Registros de saúde')?.valor).toBe('1');
   });
 
@@ -236,71 +224,64 @@ describe('montarRelatorioAnimais', () => {
     expect(doc.resumo[2]).toContain('em média, 10 dias sob cuidados da ONG');
   });
 
+  it('monta os gráficos de evolução semanal e de situação atual', () => {
+    const doc = montarRelatorioAnimais(ANIMAIS, NOVEMBRO, META);
+    const [evolucao] = secao(doc, 'Evolução no período').graficos ?? [];
+    const [situacao, cuidados] = secao(doc, 'Situação atual').graficos ?? [];
+
+    expect(evolucao).toMatchObject({
+      tipo: 'colunas',
+      categorias: ['01/11', '08/11', '15/11', '22/11'],
+      series: [
+        { nome: 'Entradas', valores: [1, 0, 0, 0] },
+        { nome: 'Adoções', valores: [0, 0, 1, 0] },
+        { nome: 'Devoluções', valores: [0, 0, 1, 0] },
+      ],
+    });
+    expect(situacao).toMatchObject({
+      tipo: 'rosca',
+      centro: { valor: '4' },
+      fatias: [
+        { rotulo: 'Em acolhimento', valor: 2 },
+        { rotulo: 'Adotado', valor: 1 },
+        { rotulo: 'Transferido', valor: 0 },
+        { rotulo: 'Óbito', valor: 1 },
+      ],
+    });
+    expect(cuidados).toMatchObject({
+      tipo: 'progresso',
+      itens: [
+        { rotulo: 'Castrados', percentual: 0.5, texto: '1 de 2 · 50%' },
+        { rotulo: 'Vacinados', percentual: 0.5 },
+        { rotulo: 'Castrados e vacinados', percentual: 0.5 },
+      ],
+    });
+  });
+
   it('lista animais de longa permanência pelo início do acolhimento vigente', () => {
     const doc = montarRelatorioAnimais(ANIMAIS, NOVEMBRO, META);
-    const longa = doc.secoes.find((s) => s.titulo.startsWith('Animais há'));
+    const [longa] = secao(doc, 'Pontos de atenção').tabelas ?? [];
 
     // Bob voltou em 20/11 e não conta como longa permanência.
-    expect(longa?.tabelas[0].linhas.map((l) => l[1])).toEqual(['Rex']);
-  });
-
-  it('inclui nas fichas apenas animais com movimentação no período', () => {
-    const doc = montarRelatorioAnimais(ANIMAIS, NOVEMBRO, META);
-
-    expect(doc.fichas.itens.map((f) => f.titulo)).toEqual([
-      'Bob · Registro 01.03.2026.1',
-      'Mia · Registro 05.11.2026.1',
-      'Rex · Registro 01.06.2026.1',
-    ]);
-  });
-
-  it('descreve a trajetória de cada animal na ficha', () => {
-    const doc = montarRelatorioAnimais(ANIMAIS, NOVEMBRO, META);
-    const fichaMia = doc.fichas.itens.find((f) => f.titulo.startsWith('Mia'));
-    const fichaBob = doc.fichas.itens.find((f) => f.titulo.startsWith('Bob'));
-    const fichaRex = doc.fichas.itens.find((f) => f.titulo.startsWith('Rex'));
-
-    expect(fichaMia?.paragrafos[0]).toContain(
-      'Adotada em 15/11/2026 por Ana Clara (cadastro #1), após 10 dias em acolhimento',
-    );
-    expect(fichaBob?.paragrafos[0]).toContain(
-      'Encontra-se em acolhimento há 4 dias (desde 20/11/2026).',
-    );
-    expect(fichaBob?.paragrafos[2]).toBe(
-      'Histórico: 1 adoção, 1 devolução e 0 registros de saúde.',
-    );
-    expect(fichaRex?.paragrafos[1]).toBe(
-      'Castrado: sim. Vacinado: sim. Peso inicial de 7,2 kg; peso atual de 8,1 kg (variação de +0,9 kg).',
-    );
-    expect(fichaRex?.tabelas[0].linhas).toHaveLength(2);
-  });
-
-  it('aplica o filtro de situação somente às fichas', () => {
-    const doc = montarRelatorioAnimais(
-      ANIMAIS,
-      { ...NOVEMBRO, status: StatusAnimal.ADOTADO },
-      META,
-    );
-
-    expect(doc.fichas.itens.map((f) => f.titulo)).toEqual([
-      'Mia · Registro 05.11.2026.1',
-    ]);
-    expect(indicador(doc, 'Em acolhimento hoje')?.valor).toBe('2');
+    expect(longa.linhas.map((l) => l[1])).toEqual(['Rex']);
   });
 
   it('considera todo o histórico quando não há período', () => {
     const doc = montarRelatorioAnimais(ANIMAIS, {}, META);
 
-    expect(doc.filtros[0]).toEqual({
-      rotulo: 'Período',
-      valor: 'Todo o histórico',
-    });
+    expect(doc.periodo).toBe('Todo o histórico');
     expect(indicador(doc, 'Entradas no período')?.valor).toBe('4');
     expect(indicador(doc, 'Transferências / óbitos')?.valor).toBe('0 / 1');
-    expect(doc.fichas.itens).toHaveLength(4);
-    expect(
-      doc.fichas.itens.find((f) => f.titulo.startsWith('Luna'))?.paragrafos[0],
-    ).toContain('Teve óbito registrado em 01/02/2026.');
+  });
+
+  it('informa a espécie filtrada na capa', () => {
+    const doc = montarRelatorioAnimais(
+      ANIMAIS,
+      { ...NOVEMBRO, especie: EspecieAnimal.GATO },
+      META,
+    );
+
+    expect(doc.filtros).toEqual([{ rotulo: 'Espécie', valor: 'Gato' }]);
   });
 
   it('ordena as movimentações do período cronologicamente', () => {
@@ -320,7 +301,7 @@ describe('montarRelatorioAnimais', () => {
       ],
     });
     const doc = montarRelatorioAnimais([bob, zeca], NOVEMBRO, META);
-    const devolucoes = doc.secoes[1].tabelas.find(
+    const devolucoes = secao(doc, 'Movimentações do período').tabelas?.find(
       (t) => t.titulo === 'Devoluções',
     );
 
@@ -336,6 +317,6 @@ describe('montarRelatorioAnimais', () => {
     expect(doc.resumo[1]).toBe(
       'Na data de emissão, não há animais em acolhimento na ONG.',
     );
-    expect(doc.fichas.itens).toEqual([]);
+    expect(indicador(doc, 'Permanência média')?.valor).toBe('-');
   });
 });

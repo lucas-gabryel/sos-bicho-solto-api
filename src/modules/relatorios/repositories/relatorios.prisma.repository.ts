@@ -1,17 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { EspecieAnimal, Prisma, TipoEventoAnimal } from '@prisma/client';
 import { PrismaService } from '#src/database/prisma.service';
-import { SituacaoAcolhedor } from '#src/modules/tutores/enums/situacao-acolhedor.enum';
-import {
-  ANIMAIS_VINCULADOS_WHERE,
-  filtroSituacao,
-} from '#src/modules/tutores/repositories/filtro-situacao';
+import { ANIMAIS_VINCULADOS_WHERE } from '#src/modules/tutores/repositories/filtro-situacao';
 import {
   AcolhedorRelatorio,
   AdocaoRelatorio,
   AnimalRelatorio,
+  DoacaoRelatorio,
   IRelatoriosRepository,
+  MovimentacaoEstoqueRelatorio,
 } from './relatorios.repository.interface';
+
+// Campos @db.Date chegam como meia-noite UTC (21h do dia anterior em
+// Maceió); ancorar ao meio-dia local mantém o dia correto.
+const MEIO_DIA_LOCAL_MS = 15 * 60 * 60 * 1000;
 
 const INCLUDE_ADOCAO = {
   tutor: { select: { codigo: true, nome: true } },
@@ -39,7 +41,6 @@ function mapearAdocao(adocao: AdocaoComRelacoes): AdocaoRelatorio {
   return {
     dataAdocao: adocao.dataAdocao,
     devolvidoEm: adocao.devolvidoEm,
-    observacoes: adocao.observacoes,
     observacoesDevolucao: adocao.observacoesDevolucao,
     protetor: adocao.protetor.nome,
     tutor: adocao.tutor,
@@ -55,12 +56,24 @@ export class RelatoriosPrismaRepository implements IRelatoriosRepository {
     const animais = await this.prisma.animal.findMany({
       where: { ativo: true, ...(especie && { especie }) },
       orderBy: { criadoEm: 'asc' },
-      include: {
-        tutor: { select: { codigo: true, nome: true } },
+      select: {
+        numeroRegistro: true,
+        nome: true,
+        especie: true,
+        castrado: true,
+        vacinado: true,
+        localResgate: true,
+        status: true,
+        criadoEm: true,
         eventos: {
           where: { ativo: true },
           orderBy: { dataEvento: 'asc' },
-          include: { criadoPor: { select: { nome: true } } },
+          select: {
+            dataEvento: true,
+            tipo: true,
+            motivoSaida: true,
+            descricao: true,
+          },
         },
         adocoes: {
           orderBy: { dataAdocao: 'asc' },
@@ -70,42 +83,20 @@ export class RelatoriosPrismaRepository implements IRelatoriosRepository {
     });
 
     return animais.map((animal) => ({
-      numeroRegistro: animal.numeroRegistro,
-      nome: animal.nome,
-      especie: animal.especie,
-      raca: animal.raca,
-      sexo: animal.sexo,
-      porte: animal.porte,
-      cor: animal.cor,
-      pesoInicial: Number(animal.pesoInicial),
-      pesoAtual: animal.pesoAtual === null ? null : Number(animal.pesoAtual),
-      dataNascimento: animal.dataNascimento,
-      castrado: animal.castrado,
-      vacinado: animal.vacinado,
-      localResgate: animal.localResgate,
-      observacoes: animal.observacoes,
-      status: animal.status,
-      criadoEm: animal.criadoEm,
-      tutor: animal.tutor,
-      eventos: animal.eventos.map((evento) => ({
-        dataEvento: evento.dataEvento,
-        tipo: evento.tipo,
-        motivoSaida: evento.motivoSaida,
-        descricao: evento.descricao,
-        automatico: evento.automatico,
-        registradoPor: evento.criadoPor?.nome ?? null,
-      })),
+      ...animal,
       adocoes: animal.adocoes.map(mapearAdocao),
     }));
   }
 
-  async buscarAcolhedores(
-    situacao: SituacaoAcolhedor,
-  ): Promise<AcolhedorRelatorio[]> {
+  async buscarAcolhedores(): Promise<AcolhedorRelatorio[]> {
     const acolhedores = await this.prisma.tutor.findMany({
-      where: { ativo: true, ...filtroSituacao(situacao) },
+      where: { ativo: true },
       orderBy: { nome: 'asc' },
-      include: {
+      select: {
+        codigo: true,
+        nome: true,
+        telefone: true,
+        criadoEm: true,
         adocoes: {
           where: { animal: { ativo: true } },
           orderBy: { dataAdocao: 'asc' },
@@ -118,23 +109,58 @@ export class RelatoriosPrismaRepository implements IRelatoriosRepository {
             numeroRegistro: true,
             nome: true,
             especie: true,
-            raca: true,
             status: true,
           },
         },
       },
     });
 
-    return acolhedores.map((acolhedor) => ({
-      codigo: acolhedor.codigo,
-      nome: acolhedor.nome,
-      cpf: acolhedor.cpf,
-      telefone: acolhedor.telefone,
-      email: acolhedor.email,
-      endereco: acolhedor.endereco,
-      criadoEm: acolhedor.criadoEm,
-      adocoes: acolhedor.adocoes.map(mapearAdocao),
-      animaisVinculados: acolhedor.animais,
+    return acolhedores.map(({ animais, adocoes, ...acolhedor }) => ({
+      ...acolhedor,
+      adocoes: adocoes.map(mapearAdocao),
+      animaisVinculados: animais,
+    }));
+  }
+
+  async buscarDoacoes(): Promise<DoacaoRelatorio[]> {
+    const doacoes = await this.prisma.doacao.findMany({
+      where: { ativo: true },
+      orderBy: { dataRecebimento: 'asc' },
+      include: { doador: { select: { id: true, nomeRazaoSocial: true } } },
+    });
+
+    return doacoes.map((doacao) => ({
+      tipo: doacao.tipo,
+      valor: doacao.valor === null ? null : Number(doacao.valor),
+      quantidade: doacao.quantidade === null ? null : Number(doacao.quantidade),
+      unidadeMedida: doacao.unidadeMedida,
+      descricao: doacao.descricao,
+      dataRecebimento: new Date(
+        doacao.dataRecebimento.getTime() + MEIO_DIA_LOCAL_MS,
+      ),
+      doador: doacao.doador
+        ? { id: doacao.doador.id, nome: doacao.doador.nomeRazaoSocial }
+        : null,
+    }));
+  }
+
+  async buscarMovimentacoesEstoque(): Promise<MovimentacaoEstoqueRelatorio[]> {
+    const movimentacoes = await this.prisma.movimentacaoEstoque.findMany({
+      where: { ativo: true },
+      orderBy: [{ dataMovimento: 'asc' }, { criadoEm: 'asc' }, { id: 'asc' }],
+      select: {
+        tipo: true,
+        tipoItem: true,
+        descricaoItem: true,
+        quantidade: true,
+        unidadeMedida: true,
+        dataMovimento: true,
+      },
+    });
+
+    return movimentacoes.map((m) => ({
+      ...m,
+      quantidade: Number(m.quantidade),
     }));
   }
 

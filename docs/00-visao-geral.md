@@ -18,7 +18,7 @@ Criar uma API REST com **NestJS** responsável por fornecer dados reais ao front
 - Processo de adoção
 - Histórico de adoções
 - Dashboard com métricas
-- Relatórios históricos em PDF (animais, adotantes e tutores)
+- Relatórios gerenciais em PDF (animais, acolhedores e doações)
 - Integração completa com o frontend
 - Deploy em ambiente de produção
 

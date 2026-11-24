@@ -1,15 +1,12 @@
 import type { JwtPayload } from '#src/common/interfaces/jwt-payload.interface';
 import type { IRelatoriosRepository } from './repositories/relatorios.repository.interface';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { SituacaoAcolhedor } from '#src/modules/tutores/enums/situacao-acolhedor.enum';
-import {
-  montarRelatorioAdotantes,
-  montarRelatorioTutores,
-} from './builders/relatorio-acolhedores.builder';
+import { montarRelatorioAcolhedores } from './builders/relatorio-acolhedores.builder';
 import {
   MetadadosRelatorio,
   montarRelatorioAnimais,
 } from './builders/relatorio-animais.builder';
+import { montarRelatorioDoacoes } from './builders/relatorio-doacoes.builder';
 import { FiltrarRelatorioAnimaisDto } from './dto/filtrar-relatorio-animais.dto';
 import { FiltrarRelatorioPeriodoDto } from './dto/filtrar-relatorio-periodo.dto';
 import { RelatoriosPdfService } from './pdf/relatorios-pdf.service';
@@ -39,35 +36,36 @@ export class RelatoriosService {
     );
   }
 
-  async gerarRelatorioTutores(
+  async gerarRelatorioAcolhedores(
     filtros: FiltrarRelatorioPeriodoDto,
     usuario: JwtPayload,
   ): Promise<Buffer> {
     this.validarPeriodo(filtros);
 
-    const [tutores, meta] = await Promise.all([
-      this.relatoriosRepository.buscarAcolhedores(SituacaoAcolhedor.TUTOR),
+    const [acolhedores, meta] = await Promise.all([
+      this.relatoriosRepository.buscarAcolhedores(),
       this.metadados(usuario),
     ]);
 
     return this.relatoriosPdfService.gerar(
-      montarRelatorioTutores(tutores, filtros, meta),
+      montarRelatorioAcolhedores(acolhedores, filtros, meta),
     );
   }
 
-  async gerarRelatorioAdotantes(
+  async gerarRelatorioDoacoes(
     filtros: FiltrarRelatorioPeriodoDto,
     usuario: JwtPayload,
   ): Promise<Buffer> {
     this.validarPeriodo(filtros);
 
-    const [adotantes, meta] = await Promise.all([
-      this.relatoriosRepository.buscarAcolhedores(SituacaoAcolhedor.ADOTANTE),
+    const [doacoes, movimentacoes, meta] = await Promise.all([
+      this.relatoriosRepository.buscarDoacoes(),
+      this.relatoriosRepository.buscarMovimentacoesEstoque(),
       this.metadados(usuario),
     ]);
 
     return this.relatoriosPdfService.gerar(
-      montarRelatorioAdotantes(adotantes, filtros, meta),
+      montarRelatorioDoacoes(doacoes, movimentacoes, filtros, meta),
     );
   }
 

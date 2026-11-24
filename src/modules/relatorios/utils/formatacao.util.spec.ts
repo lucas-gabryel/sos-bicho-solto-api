@@ -4,9 +4,9 @@ import {
   formatarData,
   formatarDuracao,
   formatarPercentual,
-  juntarLista,
-  mascararCpf,
+  intervalosDoPeriodo,
   noPeriodo,
+  somarPorIntervalo,
 } from './formatacao.util';
 
 describe('formatacao.util', () => {
@@ -36,20 +36,9 @@ describe('formatacao.util', () => {
     expect(formatarDuracao(dias)).toBe(esperado);
   });
 
-  it('mascara o CPF mantendo apenas os dígitos centrais', () => {
-    expect(mascararCpf('390.533.447-05')).toBe('***.533.447-**');
-    expect(mascararCpf('39053344705')).toBe('***.533.447-**');
-    expect(mascararCpf('123')).toBe('***');
-  });
-
   it('calcula percentual evitando divisão por zero', () => {
     expect(formatarPercentual(1, 3)).toBe('33%');
     expect(formatarPercentual(0, 0)).toBe('-');
-  });
-
-  it('junta listas em português', () => {
-    expect(juntarLista(['Rex'])).toBe('Rex');
-    expect(juntarLista(['Rex', 'Mia', 'Bob'])).toBe('Rex, Mia e Bob');
   });
 
   it('verifica se a data está no período (limites inclusivos)', () => {
@@ -71,5 +60,87 @@ describe('formatacao.util', () => {
         ate: new Date('2026-11-24T12:00Z'),
       }),
     ).toBe('01/11/2026 a 24/11/2026');
+  });
+
+  describe('intervalosDoPeriodo', () => {
+    const agora = new Date('2026-11-24T15:00:00Z');
+
+    it('usa semanas em períodos de até um mês, sem passar da data de emissão', () => {
+      const intervalos = intervalosDoPeriodo(
+        {
+          de: new Date('2026-11-01T03:00:00Z'),
+          ate: new Date('2026-12-01T02:59:59Z'),
+        },
+        [],
+        agora,
+      );
+
+      expect(intervalos.map((i) => i.rotulo)).toEqual([
+        '01/11',
+        '08/11',
+        '15/11',
+        '22/11',
+      ]);
+      expect(intervalos.at(-1)?.fim).toEqual(agora);
+    });
+
+    it('usa meses locais em períodos de até ~15 meses', () => {
+      const intervalos = intervalosDoPeriodo(
+        {
+          de: new Date('2026-01-01T03:00:00Z'),
+          ate: new Date('2026-12-01T02:59:59Z'),
+        },
+        [],
+        agora,
+      );
+
+      expect(intervalos).toHaveLength(11);
+      expect(intervalos[0]).toEqual({
+        rotulo: 'jan/26',
+        inicio: new Date('2026-01-01T03:00:00Z'),
+        fim: new Date('2026-02-01T02:59:59.999Z'),
+      });
+      expect(intervalos.at(-1)?.rotulo).toBe('nov/26');
+    });
+
+    it('usa anos em períodos longos e parte do dado mais antigo sem início', () => {
+      const intervalos = intervalosDoPeriodo(
+        {},
+        [new Date('2023-05-10T12:00:00Z')],
+        agora,
+      );
+
+      expect(intervalos.map((i) => i.rotulo)).toEqual([
+        '2023',
+        '2024',
+        '2025',
+        '2026',
+      ]);
+    });
+  });
+
+  it('soma valores (ou conta itens) por intervalo', () => {
+    const intervalos = intervalosDoPeriodo(
+      {
+        de: new Date('2026-11-01T03:00:00Z'),
+        ate: new Date('2026-11-14T02:59:59Z'),
+      },
+      [],
+      new Date('2026-11-24T15:00:00Z'),
+    );
+
+    expect(
+      somarPorIntervalo(intervalos, [
+        { data: new Date('2026-11-02T12:00Z') },
+        { data: new Date('2026-11-09T12:00Z') },
+        { data: null },
+      ]),
+    ).toEqual([1, 1]);
+    expect(
+      somarPorIntervalo(intervalos, [
+        { data: new Date('2026-11-02T12:00Z'), valor: 150 },
+        { data: new Date('2026-11-03T12:00Z'), valor: 50.5 },
+      ]),
+    ).toEqual([200.5, 0]);
   });
 });
