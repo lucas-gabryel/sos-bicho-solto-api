@@ -31,7 +31,7 @@ uma API REST construída com **NestJS** que fornece dados reais para o frontend 
 - **Gerenciador de pacotes:** pnpm
 - **Banco + ORM:** PostgreSQL + Prisma
 - **Autenticação:** JWT com 2 perfis — `ADMIN` e `PROTETOR`
-- **Tutor e Usuário são entidades separadas** (Tutor = adotante de domínio; User = operador do sistema)
+- **Tutor e Usuário são entidades separadas** (Tutor = acolhedor de domínio, classificado como Tutor ou Adotante; User = operador do sistema)
 - **Idioma do código:** estrutura técnica em inglês; domínio (campos, enums, rotas) em **português** — nomes exatos a fechar com o front
 - **Upload de foto:** fora do escopo obrigatório; plano guardado em [12](./12-upload-arquivos.md)
 - **Deploy:** estratégia definida; host (Render/Railway/etc.) a escolher na etapa de entrega

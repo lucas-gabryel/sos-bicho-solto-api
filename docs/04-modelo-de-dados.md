@@ -11,10 +11,12 @@
 | Entidade       | Papel                                                                           |
 | -------------- | ------------------------------------------------------------------------------- |
 | **Usuario**    | Quem opera o sistema (equipe). Faz login. Perfis `ADMIN`/`PROTETOR`.            |
-| **Tutor**      | Pessoa que adota. Não faz login (RN09 — tudo via módulo interno).               |
+| **Tutor**      | Acolhedor (Tutor ou Adotante, ver abaixo). Não faz login (RN09).               |
 | **Animal**     | Animal resgatado. Pode estar `ACOLHIMENTO` ou `ADOTADO`.                        |
 | **FotoAnimal** | Fotos do animal (1 principal + N adicionais). _Modelo a refinar._               |
 | **Adocao**     | **Histórico** de cada adoção (vínculo animal↔tutor registrado por um protetor). |
+
+> **Situação do acolhedor:** A situação é **derivada**, não armazenada: **Tutor** = acolhedor com ao menos um animal ativo vinculado (`animal.tutorId`); **Adotante** = acolhedor cadastrado sem animal ativo vinculado. A regra vive em `src/modules/tutores/repositories/filtro-situacao.ts` e é a mesma usada na listagem, no dashboard e nos relatórios.
 
 ## Estratégia de identificadores
 
