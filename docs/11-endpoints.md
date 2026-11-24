@@ -83,6 +83,38 @@ Resposta (chaves iguais ao `DashboardStats` do front):
 { "totalAnimais": 5, "emAcolhimento": 3, "adotados": 2, "tutores": 12 }
 ```
 
+## Relatórios — `RelatoriosController` / `RelatoriosModule`
+
+Relatórios históricos **em PDF** (`Content-Type: application/pdf`, download como anexo), gerados com
+`pdfmake`. Todos seguem o mesmo padrão: cabeçalho, filtros aplicados, indicadores, resumo descritivo,
+seções de apoio à decisão e **fichas históricas** individuais. Rodapé com data/hora de emissão, quem
+gerou e paginação. O CPF dos acolhedores sai mascarado (`***.533.447-**`).
+
+| Método | Rota                    | Acesso | Filtros (query)                         |
+| ------ | ----------------------- | ------ | --------------------------------------- |
+| GET    | `/relatorios/animais`   | ADMIN  | `de`, `ate`, `status`, `especie`        |
+| GET    | `/relatorios/adotantes` | ADMIN  | `de`, `ate`                             |
+| GET    | `/relatorios/tutores`   | ADMIN  | `de`, `ate`                             |
+
+- `de` / `ate`: ISO date-time (o front envia início/fim do dia local). Sem período = todo o histórico.
+  `de > ate` → **400**.
+- **Período:** define as movimentações contabilizadas (entradas, adoções, devoluções, saídas, registros
+  de saúde, novos cadastros) e quais fichas entram (registros com alguma movimentação no período).
+  A **situação atual** (em acolhimento, sob guarda, aguardando adoção) é sempre a da data de emissão.
+- `status` (animais): filtra só as **fichas** pela situação atual; os indicadores consideram todos.
+- `especie` (animais): restringe indicadores e fichas.
+- **Tutores/Adotantes** seguem a regra de situação do acolhedor (ver [00](./00-visao-geral.md#glossário)).
+
+Conteúdo de cada relatório:
+
+- **Animais:** entradas, adoções (com tempo médio até a adoção), devoluções (taxa), transferências e
+  óbitos; situação atual por espécie; cobertura de castração/vacinação; animais há mais de 90 dias em
+  acolhimento; ficha por animal com texto descritivo, saúde/peso e linha do tempo completa.
+- **Tutores:** tutores ativos, animais sob guarda (onde está cada animal), tempo médio de guarda,
+  novos tutores, adoções/devoluções do período; ficha com histórico de adoções.
+- **Adotantes:** fila de espera (tempo desde o cadastro), novos cadastros, adotantes com histórico de
+  devolução (ponto de atenção para novas adoções); ficha com histórico.
+
 ---
 
 ## Exemplos de payload

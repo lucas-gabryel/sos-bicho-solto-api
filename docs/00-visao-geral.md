@@ -13,11 +13,12 @@ Criar uma API REST com **NestJS** responsável por fornecer dados reais ao front
 - Autenticação de usuários (operadores da ONG)
 - Controle de permissões por perfil (RBAC)
 - Gestão de animais
-- Gestão de tutores (adotantes)
+- Gestão de acolhedores (tutores e adotantes)
 - Gestão de usuários do sistema
 - Processo de adoção
 - Histórico de adoções
 - Dashboard com métricas
+- Relatórios históricos em PDF (animais, adotantes e tutores)
 - Integração completa com o frontend
 - Deploy em ambiente de produção
 
@@ -42,12 +43,13 @@ Criar uma API REST com **NestJS** responsável por fornecer dados reais ao front
 O sistema gira em torno de **5 entidades** principais:
 
 - **Usuario** — quem opera o sistema (equipe da ONG). Faz login. Perfis: `ADMIN`, `PROTETOR`.
-- **Tutor** — pessoa que adota um animal. **Não faz login** (cadastro de domínio).
+- **Tutor** (acolhedor) — pessoa cadastrada para adotar/receber a guarda de animais. **Não faz login** (cadastro de domínio).
+  Cada acolhedor é classificado como **Tutor** ou **Adotante** conforme a regra de situação (ver Glossário).
 - **Animal** — o animal resgatado; status `ACOLHIMENTO` ou `ADOTADO`; pode ter um `tutorId` (RN06).
 - **FotoAnimal** — fotos do animal (1 principal + N). *Modelo a refinar.*
 - **Adocao** — **histórico** de cada adoção (vínculo animal↔tutor registrado por um protetor).
 
-> O **Dashboard** não é uma entidade: são consultas agregadas sobre as tabelas acima.
+> O **Dashboard** e os **Relatórios** não são entidades: são consultas agregadas sobre as tabelas acima.
 
 ## Fora de escopo (Projeto 2)
 
@@ -60,7 +62,9 @@ O sistema gira em torno de **5 entidades** principais:
 
 | Termo                      | Significado                                                         |
 | -------------------------- | ------------------------------------------------------------------- |
-| **Tutor**                  | Pessoa física que recebe a guarda de um animal (o adotante)         |
+| **Acolhedor**              | Pessoa física cadastrada (model `Tutor`); é Tutor ou Adotante       |
+| **Tutor** (situação)       | Acolhedor com ao menos um animal ativo vinculado                    |
+| **Adotante** (situação)    | Acolhedor cadastrado sem animal ativo vinculado                     |
 | **Usuário**                | Membro da equipe da ONG que opera o sistema (faz login)             |
 | **Perfil ADMIN**           | Usuário que administra o sistema (usuários + ações destrutivas)     |
 | **Perfil PROTETOR**        | Usuário que opera o dia a dia (animais, tutores, adoções)           |
@@ -68,6 +72,8 @@ O sistema gira em torno de **5 entidades** principais:
 | **Nº de Registro**         | ID humano do animal no formato `DD.MM.AAAA.N`, imutável (RN04)      |
 | **Acolhimento / Adotado**  | Status do animal (em acolhimento na ONG ou já adotado)             |
 | **RBAC**                   | _Role-Based Access Control_ — permissões baseadas em perfil         |
+
+> **Regra de situação do acolhedor:** A situação é **derivada**, não armazenada: **Tutor** = acolhedor com ao menos um animal ativo vinculado (`animal.tutorId`); **Adotante** = acolhedor cadastrado sem animal ativo vinculado. A regra vive em `src/modules/tutores/repositories/filtro-situacao.ts` e é a mesma usada na listagem, no dashboard e nos relatórios.
 | **DTO**                    | _Data Transfer Object_ — objeto de tráfego de dados na borda da API |
 
 > **Convenção de idioma:** estrutura técnica (Controller, Service, Repository, DTO...) em inglês;

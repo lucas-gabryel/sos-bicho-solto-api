@@ -100,10 +100,11 @@ constructor(
 | `PrismaModule`    | Expõe o `PrismaService` (singleton) para os repositórios |
 | `AuthModule`      | Login, emissão e validação de JWT, estratégias Passport  |
 | `UsuariosModule`  | CRUD de usuários do sistema                              |
-| `TutoresModule`   | CRUD de tutores (adotantes)                              |
+| `TutoresModule`   | CRUD de acolhedores (tutores e adotantes)                |
 | `AnimaisModule`   | CRUD de animais + fotos (status muda via adoção)         |
 | `AdocoesModule`   | Processo de adoção + histórico de status                 |
 | `DashboardModule` | Consultas agregadas (métricas)                           |
+| `RelatoriosModule` | Relatórios históricos em PDF (pdfmake) — somente ADMIN |
 
 ## Tratamento de erros
 
